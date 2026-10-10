@@ -26,27 +26,3 @@
 
 ### 3. ⏳ 更多游戏筹备中
 - 更多圣经益智、策略互动小游戏正在规划制作中……
-
----
-
-## 📂 项目目录结构
-
-为了方便在 GitHub Pages 上直接作为单站点部署，建议保持如下目录层级：
-
-```text
-bible-game-hub/
-├── index.html                  # 游戏大厅主门户（导航页）
-├── style.css                   # 大厅卡片网格样式
-├── README.md                   # 项目说明文档
-│
-├── pilgrim-progress/           # 子游戏 1：天路历程
-│   ├── index.html
-│   ├── style.css
-│   ├── game.js
-│   ├── board_config.json
-│   ├── cards.json
-│   └── questions.json
-│
-└── seventy-disciples/          # 子游戏 2：七十人：使徒行传之路
-    ├── index.html
-    └── ...
