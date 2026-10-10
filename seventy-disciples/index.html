@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>七十人：使徒行传之路</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 游戏主容器 -->
+  <div class="game-wrapper">
+    <!-- 顶部状态栏 -->
+    <header class="top-bar">
+      <div class="header-left">
+        <a href="../index.html" class="lobby-back-btn">← 大厅</a>
+        <div class="game-phase-badge" id="phase-badge">阶段一：七十人差派</div>
+        <div class="turn-indicator">第 <span id="turn-num">1</span> 回合</div>
+      </div>
+
+      <!-- 四大核心资源产出 -->
+      <div class="resource-group">
+        <div class="res-item" title="信徒人口：各地归主门徒总数">
+          👥 信徒: <strong id="res-converts">0</strong>
+        </div>
+        <div class="res-item" title="圣灵信心：用于医病赶鬼与抵挡压制">
+          ✨ 信心: <strong id="res-faith">100</strong>
+        </div>
+        <div class="res-item" title="真理经卷：用于研发神学理解与著述">
+          📜 真理: <strong id="res-truth">20</strong>
+        </div>
+        <div class="res-item" title="爱心物资：用于爱筵、周济与旅途差役供养">
+          🍞 物资: <strong id="res-mercy-goods">50</strong>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <button id="open-tech-btn" class="nav-btn">双轨树</button>
+        <button id="next-turn-btn" class="btn-next-turn">下一回合 ➔</button>
+      </div>
+    </header>
+
+    <!-- 中部主视窗：航路节点地图与侧边栏操作 -->
+    <div class="main-content">
+      <!-- 羊皮纸真实地理地图画布容器 -->
+      <main class="map-viewport" id="map-viewport">
+        <div class="map-container" id="map-container">
+          <!-- 绘制古地中海真实海岸线与水域地形的 Canvas -->
+          <canvas id="map-canvas" width="1400" height="900"></canvas>
+          <div id="nodes-layer" class="nodes-layer"></div>
+        </div>
+
+        <!-- 缩放浮动按键 -->
+        <div class="map-controls">
+          <button id="btn-zoom-in" class="map-ctrl-btn" title="放大">+</button>
+          <button id="btn-zoom-out" class="map-ctrl-btn" title="缩小">-</button>
+          <button id="btn-zoom-reset" class="map-ctrl-btn" title="还原视角">⟲</button>
+        </div>
+      </main>
+
+      <!-- 右侧：行动控制台与同工面板 -->
+      <aside class="control-panel">
+        <!-- 当前位置与节点交互 -->
+        <section class="panel-section location-info">
+          <h3>当前驻足：<span id="cur-loc-name">迦百农</span></h3>
+          <p id="cur-loc-desc" class="loc-desc">加利利海滨重镇...</p>
+          <div class="node-status-bar">
+            <span>民情刚硬度: <strong id="cur-hardiness">30%</strong></span>
+            <span>教会状态: <strong id="cur-church-status">未建立</strong></span>
+          </div>
+
+          <div class="action-buttons-grid">
+            <button id="act-preach" class="act-btn">传道宣讲 (消耗 1AP)</button>
+            <button id="act-heal" class="act-btn">按手祷告 (消耗 1AP, 15信心)</button>
+            <button id="act-build-church" class="act-btn primary">建立教会 (消耗 40物资)</button>
+            <button id="act-send-letter" class="act-btn secondary">发送督责书信</button>
+          </div>
+        </section>
+
+        <!-- 同工与使徒行传团队 -->
+        <section class="panel-section companions-info">
+          <div class="section-title-row">
+            <h3>宣教队伍</h3>
+            <span class="ap-badge">可用行动力: <strong id="cur-ap">3/3</strong></span>
+          </div>
+          <div id="companion-list" class="companion-list">
+            <!-- 动态生成主角与同工卡片 -->
+          </div>
+        </section>
+
+        <!-- 历史与事工日志 -->
+        <section class="panel-section log-section">
+          <h3>使徒纪事</h3>
+          <div id="log-stream" class="log-stream"></div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <!-- 模态框 1：开局角色选择与五饼二鱼闪回引导 -->
+  <div id="modal-intro" class="modal-backdrop active">
+    <div class="modal-window intro-window">
+      <h2>七十人的差派与见证</h2>
+      <p class="scripture-quote">“主又设立七十个人，差遣他们两个两个地，在他前面往自己所要到的各城各地方去。” —— 路加福音 10:1</p>
+      
+      <!-- 闪回回忆 -->
+      <div class="flashback-box">
+        <h4>【回忆闪回 · 加利利海畔】</h4>
+        <p>你仍清楚记得那日傍晚，面对五千饥渴的人群，主掰开五饼二鱼祝谢，众人尽都吃饱，甚至收拾了十二个满筐。他的恩典日日够用！如今他差派你踏上旷野路途...</p>
+      </div>
+
+      <h3>挑选你的使徒见证者背景：</h3>
+      <div id="template-select-grid" class="template-grid"></div>
+
+      <button id="btn-confirm-start" class="btn-start" disabled>领受差遣 · 两两启程</button>
+    </div>
+  </div>
+
+  <!-- 模态框 2：双科技树界面（属灵真理树 + 教会事工树） -->
+  <div id="modal-tech" class="modal-backdrop">
+    <div class="modal-window tech-window">
+      <div class="modal-header">
+        <h2>属灵双轨发展树</h2>
+        <button class="close-btn" onclick="document.getElementById('modal-tech').classList.remove('active')">✕</button>
+      </div>
+      <div class="tech-trees-container">
+        <!-- 属灵真理树 -->
+        <div class="tech-column">
+          <h3>📜 属灵真理树 (神学领悟)</h3>
+          <p class="tech-col-tip">消耗【真理点数】研发，增强辩道与化解异端律法之争</p>
+          <div id="truth-tree-list" class="tech-list"></div>
+        </div>
+        <!-- 教会事工树 -->
+        <div class="tech-column">
+          <h3>🏛️ 教会事工树 (体制治理)</h3>
+          <p class="tech-col-tip">消耗【真理点数】研发，改善教会行政分工与书信网络</p>
+          <div id="ministry-tree-list" class="tech-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模态框 3：危机事件与历史转折弹窗 -->
+  <div id="modal-event" class="modal-backdrop">
+    <div class="modal-window event-window">
+      <h3 id="event-title">历史事件</h3>
+      <div id="event-desc" class="event-desc-content"></div>
+      <div id="event-result" class="event-result-box"></div>
+      <button id="event-ack-btn" class="btn-primary">阿们，顺服承受</button>
+    </div>
+  </div>
+
+  <!-- 节点鼠标悬停状态浮窗 (Tooltip) -->
+  <div id="node-tooltip" class="node-tooltip"></div>
+
+  <!-- 模态框：中央使徒纪事实时叙事弹窗 -->
+  <div id="modal-chronicle" class="modal-backdrop">
+    <div class="modal-window chronicle-window">
+      <div class="chronicle-badge" id="chronicle-badge">使徒见证</div>
+      <h3 id="chronicle-title">纪事载录</h3>
+      <div class="chronicle-body" id="chronicle-content"></div>
+      <div class="chronicle-changes" id="chronicle-changes"></div>
+      <!-- 羊皮纸烫金印纹按钮 -->
+      <button id="chronicle-confirm-btn">✦ 阿们 · 记在心上 ✦</button>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

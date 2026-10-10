@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>天路历程：圣经棋盘巡礼 (Pilgrim's Progress)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 开局配置弹窗 (1-8人设置) -->
+  <div id="setup-modal" class="modal-backdrop active">
+    <div class="modal-window setup-window">
+      <h2>天路历程：朝圣启程</h2>
+      <p class="subtitle">设定天路客队伍（1 ~ 8 人）</p>
+      
+      <div class="player-count-select">
+        <label for="player-count">朝圣人数：</label>
+        <select id="player-count">
+          <option value="1">1 人</option>
+          <option value="2" selected>2 人</option>
+          <option value="3">3 人</option>
+          <option value="4">4 人</option>
+          <option value="5">5 人</option>
+          <option value="6">6 人</option>
+          <option value="7">7 人</option>
+          <option value="8">8 人</option>
+        </select>
+      </div>
+
+      <div id="player-names-container" class="player-inputs-grid">
+        <!-- JS 动态注入玩家姓名输入框 -->
+      </div>
+
+      <button id="start-game-btn" class="btn-primary">开始天路历程</button>
+    </div>
+  </div>
+
+  <!-- 游戏主容器 -->
+  <div class="app-layout">
+    <!-- 左侧：70 格棋盘主区域 -->
+    <main class="board-container">
+      <div class="board-header">
+        <a href="../index.html" class="back-to-lobby-btn">← 返回大厅</a>
+        <h1>天路历程 · 70 站圣经试炼与恩典之径</h1>
+      </div>
+      <div id="board" class="board-grid">
+        <!-- 70 个格子将由 JS 动态生成 -->
+      </div>
+    </main>
+
+    <!-- 右侧：仪表盘与控制中心 -->
+    <aside class="dashboard">
+      <!-- 轮次与当前行动者 -->
+      <div class="panel round-info">
+        <div class="round-badge">第 <span id="current-round">1</span> 轮</div>
+        <div class="turn-desc">当前行动：<span id="active-player-name">-</span></div>
+      </div>
+
+      <!-- 3D 骰子区域 -->
+      <div class="panel dice-panel">
+        <div class="dice-scene">
+          <div id="dice" class="dice show-1">
+            <div class="dice-face face-1">1</div>
+            <div class="dice-face face-2">2</div>
+            <div class="dice-face face-3">3</div>
+            <div class="dice-face face-4">4</div>
+            <div class="dice-face face-5">5</div>
+            <div class="dice-face face-6">6</div>
+          </div>
+        </div>
+        <button id="roll-btn" class="btn-action">投掷骰子</button>
+        <div id="roll-status" class="status-tip">等待投掷...</div>
+      </div>
+
+      <!-- 玩家状态榜单 -->
+      <div class="panel roster-panel">
+        <h3>天路客名录</h3>
+        <div id="player-roster" class="roster-list">
+          <!-- JS 渲染每个玩家的信心值、状态、位置 -->
+        </div>
+      </div>
+
+      <!-- 操作与历史日志 -->
+      <div class="panel log-panel">
+        <h3>历程日志</h3>
+        <div id="game-logs" class="logs-stream"></div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 通用交互弹窗（问答、卡牌、同格互动、禁食提示） -->
+  <div id="dialog-modal" class="modal-backdrop">
+    <div class="modal-window dialog-window">
+      <div id="dialog-badge" class="badge">圣经试炼</div>
+      <h3 id="dialog-title">题目加载中</h3>
+      <div id="dialog-content" class="dialog-content"></div>
+      <div id="dialog-actions" class="dialog-actions"></div>
+    </div>
+  </div>
+
+  <!-- 最终排行榜结算弹窗 -->
+  <div id="leaderboard-modal" class="modal-backdrop">
+    <div class="modal-window result-window">
+      <h2>天路历程已至终点</h2>
+      <p class="subtitle">当轮天路客已全部行毕，最终信心排行榜：</p>
+      <div id="leaderboard-list" class="leaderboard-list"></div>
+      <button onclick="location.reload()" class="btn-primary">重新启程</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
