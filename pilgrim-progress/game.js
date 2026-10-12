@@ -421,7 +421,7 @@ function handleSameTileCheck(player, callback) {
         checkFaithStatus(p);
       });
       showDialog(
-        "同路磨砺：互相激励",
+        "同路磨砺：互相分手",
         `狭路相逢，步伐产生磨擦。\n除当前玩家外，同格其他玩家（${otherNames}）信心值 -10 点并后退 1 格！`,
         [{ label: "引以为戒", onClick: () => { closeDialog(); callback(); } }]
       );
