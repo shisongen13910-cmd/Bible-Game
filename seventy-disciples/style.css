@@ -49,7 +49,7 @@ body {
 .header-left, .header-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .lobby-back-btn {
@@ -80,7 +80,7 @@ body {
 
 .resource-group {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   font-size: 0.9rem;
 }
 
@@ -92,10 +92,17 @@ body {
 .nav-btn, .btn-next-turn {
   cursor: pointer;
   border: 2px solid var(--parchment-border);
-  padding: 6px 14px;
+  padding: 5px 12px;
   font-weight: bold;
+  font-size: 0.82rem;
   border-radius: 4px;
   background: var(--parchment-light);
+  transition: all 0.15s ease;
+}
+
+.nav-btn:hover {
+  background: #fff;
+  border-color: var(--gold);
 }
 
 .btn-next-turn {
@@ -207,12 +214,9 @@ body {
   transform: scale(1.08);
 }
 
-/* ===================================================================
-   🗺️ 超反向收敛节点系统：放大时点与字变小，留出巨大航线空隙
-   =================================================================== */
+/* 节点图标：随地图缩放反向收敛以拉开空隙 */
 .map-node {
   position: absolute;
-  /* 核心公式：随 map-scale 增大，整体尺寸快速缩减，腾出空隙 */
   transform: translate(-50%, -50%) scale(calc(1 / (var(--map-scale, 1) * 1.35)));
   transform-origin: center center;
   display: flex;
@@ -224,7 +228,6 @@ body {
 }
 
 .map-node:hover {
-  /* 悬停时局部放大，方便点击 */
   transform: translate(-50%, -50%) scale(calc(1.4 / (var(--map-scale, 1) * 1.35)));
   z-index: 10;
 }
@@ -280,7 +283,6 @@ body {
 
 .map-node.type-hub .node-label {
   font-size: 0.8rem;
-  font-weight: bold;
   color: #521919;
   border-color: #8b5a2b;
   background: rgba(255, 250, 240, 0.95);
@@ -295,7 +297,6 @@ body {
   border: 1px dashed rgba(109, 76, 50, 0.3);
 }
 
-/* 远景缩小时 (scale < 1.15) 隐藏次要村镇标签 */
 .lod-far .map-node.type-town:not(.active-player-pos) .node-label {
   display: none;
 }
@@ -356,6 +357,28 @@ body {
   border-bottom: 1px dashed rgba(109, 76, 50, 0.3);
 }
 
+.city-challenge-box {
+  background: #fdf5e6;
+  border: 1.5px dashed var(--crimson);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+
+.challenge-title {
+  color: var(--crimson);
+  font-weight: bold;
+  font-size: 0.82rem;
+  margin-bottom: 3px;
+}
+
+.chal-desc {
+  font-size: 0.72rem;
+  color: #554433;
+  line-height: 1.35;
+  margin-bottom: 6px;
+}
+
 .action-buttons-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -391,7 +414,17 @@ body {
   grid-column: span 2;
 }
 
-/* 同工名录 */
+.act-btn.special {
+  width: 100%;
+  background: linear-gradient(180deg, #9e2323 0%, #681212 100%);
+  color: #fff;
+  border-color: #4a0d0d;
+}
+
+.act-btn.special:hover {
+  background: linear-gradient(180deg, #b82a2a 0%, #7d1717 100%);
+}
+
 .section-title-row {
   display: flex;
   justify-content: space-between;
@@ -425,7 +458,6 @@ body {
   margin-top: 2px;
 }
 
-/* 使徒纪事日志流 */
 .log-stream {
   max-height: 150px;
   overflow-y: auto;
@@ -449,7 +481,7 @@ body {
   margin-right: 6px;
 }
 
-/* 弹窗系统通用遮罩 */
+/* 弹窗系统核心 */
 .modal-backdrop {
   position: fixed;
   top: 0; left: 0;
@@ -458,20 +490,22 @@ body {
   display: none;
   justify-content: center;
   align-items: center;
-  z-index: 100;
+  z-index: 1000 !important;
 }
 
 .modal-backdrop.active {
-  display: flex;
+  display: flex !important;
 }
 
 .modal-window {
   background: var(--parchment);
   border: 5px solid var(--parchment-border);
   border-radius: 6px;
-  padding: 20px;
+  padding: 24px;
   max-width: 90%;
   box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+  position: relative;
+  z-index: 1001 !important;
 }
 
 .intro-window {
@@ -545,7 +579,6 @@ body {
   cursor: not-allowed;
 }
 
-/* 科技树窗口 */
 .tech-window {
   width: 780px;
 }
@@ -555,14 +588,35 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 14px;
+  position: relative;
+  z-index: 1002 !important;
 }
 
 .close-btn {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  cursor: pointer;
+  background: #f7edd4;
+  border: 2px solid var(--parchment-border);
+  color: var(--crimson);
+  font-size: 1.25rem;
+  cursor: pointer !important;
   font-weight: bold;
+  width: 34px;
+  height: 34px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.15s ease;
+  position: relative;
+  z-index: 1005 !important;
+  pointer-events: auto !important;
+  user-select: none;
+}
+
+.close-btn:hover {
+  background: var(--crimson);
+  color: #fff;
+  transform: scale(1.08);
 }
 
 .tech-trees-container {
@@ -601,9 +655,107 @@ body {
   cursor: pointer;
   padding: 3px 8px;
   font-size: 0.75rem;
+  background: var(--gold);
+  color: #fff;
+  border: 1px solid #5a3d28;
+  border-radius: 3px;
 }
 
-/* 节点悬停 Tooltip */
+.tech-card button:disabled {
+  background: #bbb;
+  cursor: not-allowed;
+  border-color: #888;
+}
+
+.coworker-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.coworker-card {
+  background: var(--parchment-light);
+  border: 1.5px solid var(--parchment-border);
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 0.78rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.coworker-card h4 {
+  color: var(--crimson);
+  font-size: 0.88rem;
+  margin-bottom: 4px;
+}
+
+.coworker-desc {
+  color: #554433;
+  font-size: 0.72rem;
+  margin-bottom: 6px;
+  line-height: 1.35;
+}
+
+.coworker-perk-text {
+  color: #2b8a3e;
+  font-weight: bold;
+  font-size: 0.7rem;
+  margin-bottom: 8px;
+}
+
+.coworker-card button {
+  cursor: pointer;
+  background: var(--gold);
+  color: #fff;
+  border: 1px solid #5a3d28;
+  padding: 5px;
+  font-weight: bold;
+  font-size: 0.75rem;
+  border-radius: 3px;
+}
+
+.coworker-card button:disabled {
+  background: #aaa;
+  cursor: not-allowed;
+}
+
+.victory-routes-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.victory-card {
+  background: #fffdf7;
+  border: 1.5px solid var(--parchment-border);
+  border-radius: 4px;
+  padding: 10px 14px;
+}
+
+.victory-card h4 {
+  color: var(--crimson);
+  font-size: 0.92rem;
+  margin-bottom: 4px;
+}
+
+.victory-card p {
+  font-size: 0.78rem;
+  color: #443322;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.route-progress {
+  font-size: 0.74rem;
+  font-weight: bold;
+  color: var(--gold);
+  background: rgba(179, 134, 34, 0.1);
+  padding: 3px 8px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
 .node-tooltip {
   position: fixed;
   display: none;
@@ -614,7 +766,7 @@ body {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
   border-radius: 4px;
   padding: 8px 12px;
-  max-width: 240px;
+  max-width: 250px;
   font-size: 0.78rem;
   line-height: 1.4;
   color: var(--ink);
@@ -651,7 +803,6 @@ body {
   gap: 2px;
 }
 
-/* 中央羊皮纸纪事卷轴弹窗 */
 .chronicle-window {
   width: 600px;
   max-width: 92vw;
@@ -665,6 +816,7 @@ body {
   padding: 34px 28px 24px;
   box-shadow: 0 15px 40px rgba(0, 0, 0, 0.75), inset 0 0 45px rgba(112, 77, 43, 0.35);
   animation: modalScrollUnfold 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 1002 !important;
 }
 
 @keyframes modalScrollUnfold {

@@ -60,13 +60,12 @@ const CHARACTER_TEMPLATES = [
   }
 ];
 
-// 2. (更新 MAP_NODES 坐标，对齐真实地理版图)
+// 2. 地图节点与城邦专属挑战议题
 const MAP_NODES = {
-  // --- 黎凡特核心区 (加利利、犹太与撒玛利亚) ---
   "capernaum": {
     id: "capernaum", name: "迦百农", x: 1045, y: 550, phase: 1, type: "city",
     hardiness: 30, desc: "加利利海滨重镇，主多次讲道医病之所。",
-    connections: ["nazareth", "chorazin", "tiberias"]
+    connections: ["nazareth", "chorazin", "tiberias", "bethsaida"] // 修复：补充连向 bethsaida
   },
   "chorazin": {
     id: "chorazin", name: "哥拉汛", x: 1060, y: 535, phase: 1, type: "town",
@@ -90,7 +89,12 @@ const MAP_NODES = {
   },
   "samaria": {
     id: "samaria", name: "撒玛利亚", x: 1030, y: 620, phase: 1, type: "city",
-    hardiness: 40, desc: "叙加雅各井旁，渴慕活水之地。",
+    hardiness: 40, desc: "叙加雅各井旁，渴慕活水之地。行邪术的西门曾在此迷惑众人。",
+    challenge: {
+      title: "破除西门邪术迷思",
+      desc: "行邪术的西门试图拿银子买圣灵恩赐。你需以真道严肃责备并呼召悔改！",
+      reqTruth: 35, rewardConverts: 25, rewardFaith: 20
+    },
     connections: ["nazareth", "tiberias", "jericho", "jerusalem"]
   },
   "jericho": {
@@ -108,8 +112,6 @@ const MAP_NODES = {
     hardiness: 35, desc: "古老海港，硝皮匠西门居所，彼得见天布异象之地。",
     connections: ["jerusalem", "caesarea"]
   },
-
-  // --- 外邦大宣教区 (叙利亚、小亚细亚、爱琴海与罗马) ---
   "caesarea": {
     id: "caesarea", name: "凯撒利亚", x: 1005, y: 605, phase: 2, type: "port",
     hardiness: 55, desc: "罗马总督驻地，百夫长哥尼流归主之所。",
@@ -123,7 +125,12 @@ const MAP_NODES = {
   "antioch": {
     id: "antioch", name: "安提阿", x: 1060, y: 400, phase: 2, type: "hub",
     hardiness: 35, desc: "门徒被称为基督徒之始，向外邦宣教之总枢纽。",
-    connections: ["damascus", "tarsus", "cyprus", "caesarea"]
+    challenge: {
+      title: "确立外邦宣教基地",
+      desc: "巴拿巴与保罗在此同心牧养，差派门徒出征小亚细亚！",
+      reqTruth: 45, rewardConverts: 35, rewardGoods: 40
+    },
+    connections: ["damascus", "tarsus", "cyprus", "caesarea", "jerusalem"] // 修复：补充连回 jerusalem
   },
   "cyprus": {
     id: "cyprus", name: "塞浦路斯", x: 955, y: 460, phase: 2, type: "port", isSea: true,
@@ -143,16 +150,31 @@ const MAP_NODES = {
   "ephesus": {
     id: "ephesus", name: "以弗所", x: 770, y: 360, phase: 2, type: "hub",
     hardiness: 65, desc: "亚细亚大都会，亚底米女神殿所在地，福音争战剧烈。",
+    challenge: {
+      title: "平息亚底米银匠暴乱",
+      desc: "底米丢挑动全城工匠聚众反扑。需在推喇奴学房持续辨道，彰显真神伟大！",
+      reqTruth: 70, rewardConverts: 45, rewardTruth: 30
+    },
     connections: ["iconium", "cyprus", "athens", "philippi"]
   },
   "athens": {
     id: "athens", name: "雅典", x: 630, y: 410, phase: 2, type: "city",
     hardiness: 70, desc: "亚略巴古哲士聚集之都，敬拜未识之神。",
+    challenge: {
+      title: "亚略巴古哲理巅峰论辩",
+      desc: "面对斯多亚与以彼古罗学派哲士，辨明创世主与死人复活之道！",
+      reqTruth: 85, rewardConverts: 40, rewardTruth: 50
+    },
     connections: ["ephesus", "thessalonica", "corinth"]
   },
   "corinth": {
     id: "corinth", name: "哥林多", x: 595, y: 430, phase: 2, type: "hub",
     hardiness: 60, desc: "商业与港口大都会，多元但也饱受世俗冲击。",
+    challenge: {
+      title: "化解教会世俗党争",
+      desc: "教会内部因恩赐与分门别类产生危机，需以爱的至高之道使之归一！",
+      reqTruth: 60, rewardConverts: 35, rewardFaith: 30
+    },
     connections: ["athens", "thessalonica", "rome"]
   },
   "thessalonica": {
@@ -172,7 +194,43 @@ const MAP_NODES = {
   }
 };
 
-// 3. 双科技树定义
+// 3. 可招募的著名历史宣教同工库
+const RECRUITABLE_COWORKERS = [
+  {
+    id: "barnabas",
+    name: "劝慰子·巴拿巴",
+    desc: "大有信心，被圣灵充满，善于劝勉激励众人，家产变卖周济使徒。",
+    reqConverts: 30,
+    costGoods: 25,
+    perkDesc: "随队：全队传道胜率 +10% | 驻守：所在城市每回合提供 +4 物资"
+  },
+  {
+    id: "timothy",
+    name: "年轻同工·提摩太",
+    desc: "路司得青年，真诚无伪之信，如儿子待父亲一般兴旺福音。",
+    reqConverts: 60,
+    costGoods: 30,
+    perkDesc: "随队：行动力上限 +1 | 驻守：所在城市每回合刚硬度额外减少 1%"
+  },
+  {
+    id: "lydia",
+    name: "敬虔妇人·吕底亚",
+    desc: "腓立比卖紫色布匹妇人，敬畏神，开放家庭作为全城聚会之所。",
+    reqConverts: 90,
+    costGoods: 40,
+    perkDesc: "随队：建堂消耗减少 15 物资 | 驻守：所在城市提供每回合 +6 物资"
+  },
+  {
+    id: "priscilla_aquila",
+    name: "百基拉与亚居拉",
+    desc: "织帐棚工匠同道，圣经真理熟稔，曾将主的道更详实指引给亚波罗。",
+    reqConverts: 120,
+    costGoods: 50,
+    perkDesc: "随队：全队真理产出 +50% | 驻守：所在城市每回合提供 +3 真理"
+  }
+];
+
+// 4. 双科技树定义
 const TRUTH_TECH_TREE = [
   { id: "t_prophecy", name: "弥赛亚预言", cost: 20, desc: "融会贯通以赛亚书与诗篇，会堂辩道胜率 +15%" },
   { id: "t_grace", name: "因信称义", cost: 45, prereq: "t_prophecy", desc: "打破律法主义沉重枷锁，外邦人归信阻力 -25%" },
@@ -187,14 +245,14 @@ const MINISTRY_TECH_TREE = [
   { id: "m_world_mission", name: "差传宣教大会", cost: 120, prereq: "m_epistles", desc: "可自由招募提拔年轻同工，大地图移动力消耗减少" }
 ];
 
-// 4. 历史危机事件库（10大经典历史事件，惩罚全部改为百分比）
+// 5. 历史危机事件库
 const CRISIS_EVENTS = [
   {
     id: "c_sanhedrin",
     title: "犹太公会禁令与捉拿",
     desc: "公会的大祭司与差役下令严禁奉耶稣的名传道，并在城中四处搜捕！",
     requiredTech: "t_prophecy",
-    onFailure: { faithLossPct: 0.15, convertsLossPct: 0.10 }, // 扣除当前 15% 信心，10% 信徒
+    onFailure: { faithLossPct: 0.15, convertsLossPct: 0.10 },
     successMsg: "门徒放胆引证摩西与先知书，官长无可奈何，只得恐吓释放！"
   },
   {
@@ -202,7 +260,7 @@ const CRISIS_EVENTS = [
     title: "说希腊话寡妇的埋怨",
     desc: "说希腊话的犹太人向希伯来人发怨言，因在天天的供给上忽略了他们的寡妇！",
     requiredTech: "m_deacons",
-    onFailure: { goodsLossPct: 0.20, convertsLossPct: 0.12 }, // 扣除当前 20% 物资，12% 信徒
+    onFailure: { goodsLossPct: 0.20, convertsLossPct: 0.12 },
     successMsg: "选派七位大有信心被圣灵充满的执事料理此事，供给公平，教会大得和睦！"
   },
   {

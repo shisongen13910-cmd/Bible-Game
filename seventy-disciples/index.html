@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- 游戏主容器 -->
   <div class="game-wrapper">
     <!-- 顶部状态栏 -->
     <header class="top-bar">
@@ -17,7 +16,7 @@
         <div class="turn-indicator">第 <span id="turn-num">1</span> 回合</div>
       </div>
 
-      <!-- 四大核心资源产出 -->
+      <!-- 四大核心资源 -->
       <div class="resource-group">
         <div class="res-item" title="信徒人口：各地归主门徒总数">
           👥 信徒: <strong id="res-converts">0</strong>
@@ -28,28 +27,27 @@
         <div class="res-item" title="真理经卷：用于研发神学理解与著述">
           📜 真理: <strong id="res-truth">20</strong>
         </div>
-        <div class="res-item" title="爱心物资：用于爱筵、周济与旅途差役供养">
+        <div class="res-item" title="爱心物资：用于爱筵、周济与维持教会">
           🍞 物资: <strong id="res-mercy-goods">50</strong>
         </div>
       </div>
 
       <div class="header-right">
+        <button id="open-coworkers-btn" class="nav-btn">招募同工</button>
+        <button id="open-victory-btn" class="nav-btn">使徒异象</button>
         <button id="open-tech-btn" class="nav-btn">双轨树</button>
         <button id="next-turn-btn" class="btn-next-turn">下一回合 ➔</button>
       </div>
     </header>
 
-    <!-- 中部主视窗：航路节点地图与侧边栏操作 -->
+    <!-- 中部主视窗 -->
     <div class="main-content">
-      <!-- 羊皮纸真实地理地图画布容器 -->
       <main class="map-viewport" id="map-viewport">
         <div class="map-container" id="map-container">
-          <!-- 绘制古地中海真实海岸线与水域地形的 Canvas -->
           <canvas id="map-canvas" width="1400" height="900"></canvas>
           <div id="nodes-layer" class="nodes-layer"></div>
         </div>
 
-        <!-- 缩放浮动按键 -->
         <div class="map-controls">
           <button id="btn-zoom-in" class="map-ctrl-btn" title="放大">+</button>
           <button id="btn-zoom-out" class="map-ctrl-btn" title="缩小">-</button>
@@ -57,9 +55,8 @@
         </div>
       </main>
 
-      <!-- 右侧：行动控制台与同工面板 -->
+      <!-- 右侧控制台 -->
       <aside class="control-panel">
-        <!-- 当前位置与节点交互 -->
         <section class="panel-section location-info">
           <h3>当前驻足：<span id="cur-loc-name">迦百农</span></h3>
           <p id="cur-loc-desc" class="loc-desc">加利利海滨重镇...</p>
@@ -68,26 +65,34 @@
             <span>教会状态: <strong id="cur-church-status">未建立</strong></span>
           </div>
 
+          <!-- 城邦专属议题挑战栏目 -->
+          <div id="city-challenge-box" class="city-challenge-box" style="display:none;">
+            <div class="challenge-title" id="chal-title">城邦议题</div>
+            <p id="chal-desc" class="chal-desc"></p>
+            <button id="act-solve-challenge" class="act-btn special">进行辩道决胜</button>
+          </div>
+
+          <!-- 宣教行动网格 -->
           <div class="action-buttons-grid">
-            <button id="act-preach" class="act-btn">传道宣讲 (消耗 1AP)</button>
-            <button id="act-heal" class="act-btn">按手祷告 (消耗 1AP, 15信心)</button>
-            <button id="act-build-church" class="act-btn primary">建立教会 (消耗 40物资)</button>
-            <button id="act-send-letter" class="act-btn secondary">发送督责书信</button>
+            <button id="act-preach" class="act-btn">传道宣讲 (1 AP)</button>
+            <button id="act-heal" class="act-btn">按手祷告 (1 AP, 15信心)</button>
+            <button id="act-fasting" class="act-btn secondary" title="专注祷告，恢复灵里力量">禁食默想 (1 AP, +15信心)</button>
+            <button id="act-tentmaking" class="act-btn secondary" title="亲手作工自给自足">织帐棚作工 (1 AP, +8物资)</button>
+            <button id="act-build-church" class="act-btn primary">建立家庭教会 (40 物资)</button>
+            <button id="act-send-letter" class="act-btn secondary">发送督责书信 (15 真理)</button>
           </div>
         </section>
 
-        <!-- 同工与使徒行传团队 -->
+        <!-- 同工名录 -->
         <section class="panel-section companions-info">
           <div class="section-title-row">
-            <h3>宣教队伍</h3>
+            <h3>宣教队伍与驻守同工</h3>
             <span class="ap-badge">可用行动力: <strong id="cur-ap">3/3</strong></span>
           </div>
-          <div id="companion-list" class="companion-list">
-            <!-- 动态生成主角与同工卡片 -->
-          </div>
+          <div id="companion-list" class="companion-list"></div>
         </section>
 
-        <!-- 历史与事工日志 -->
+        <!-- 使徒纪事日志 -->
         <section class="panel-section log-section">
           <h3>使徒纪事</h3>
           <div id="log-stream" class="log-stream"></div>
@@ -96,13 +101,12 @@
     </div>
   </div>
 
-  <!-- 模态框 1：开局角色选择与五饼二鱼闪回引导 -->
+  <!-- 模态框 1：开局角色选择 -->
   <div id="modal-intro" class="modal-backdrop active">
     <div class="modal-window intro-window">
       <h2>七十人的差派与见证</h2>
       <p class="scripture-quote">“主又设立七十个人，差遣他们两个两个地，在他前面往自己所要到的各城各地方去。” —— 路加福音 10:1</p>
       
-      <!-- 闪回回忆 -->
       <div class="flashback-box">
         <h4>【回忆闪回 · 加利利海畔】</h4>
         <p>你仍清楚记得那日傍晚，面对五千饥渴的人群，主掰开五饼二鱼祝谢，众人尽都吃饱，甚至收拾了十二个满筐。他的恩典日日够用！如今他差派你踏上旷野路途...</p>
@@ -115,7 +119,7 @@
     </div>
   </div>
 
-  <!-- 模态框 2：双科技树界面（属灵真理树 + 教会事工树） -->
+  <!-- 模态框 2：双科技树界面 -->
   <div id="modal-tech" class="modal-backdrop">
     <div class="modal-window tech-window">
       <div class="modal-header">
@@ -123,13 +127,11 @@
         <button class="close-btn" onclick="document.getElementById('modal-tech').classList.remove('active')">✕</button>
       </div>
       <div class="tech-trees-container">
-        <!-- 属灵真理树 -->
         <div class="tech-column">
           <h3>📜 属灵真理树 (神学领悟)</h3>
           <p class="tech-col-tip">消耗【真理点数】研发，增强辩道与化解异端律法之争</p>
           <div id="truth-tree-list" class="tech-list"></div>
         </div>
-        <!-- 教会事工树 -->
         <div class="tech-column">
           <h3>🏛️ 教会事工树 (体制治理)</h3>
           <p class="tech-col-tip">消耗【真理点数】研发，改善教会行政分工与书信网络</p>
@@ -139,13 +141,42 @@
     </div>
   </div>
 
-  <!-- 模态框 3：危机事件与历史转折弹窗 -->
-  <div id="modal-event" class="modal-backdrop">
-    <div class="modal-window event-window">
-      <h3 id="event-title">历史事件</h3>
-      <div id="event-desc" class="event-desc-content"></div>
-      <div id="event-result" class="event-result-box"></div>
-      <button id="event-ack-btn" class="btn-primary">阿们，顺服承受</button>
+  <!-- 模态框 3：同工招募界面 -->
+  <div id="modal-coworkers" class="modal-backdrop">
+    <div class="modal-window" style="width:680px;">
+      <div class="modal-header">
+        <h2>招募与委派历史同工</h2>
+        <button class="close-btn" onclick="document.getElementById('modal-coworkers').classList.remove('active')">✕</button>
+      </div>
+      <p style="font-size:0.8rem;color:#554433;margin-bottom:12px;">随着门徒群体的增长与物资储备的丰富，可以招募使徒时代的著名同工随队协助或按立驻守牧养各地教会。</p>
+      <div id="coworker-market-grid" class="coworker-grid"></div>
+    </div>
+  </div>
+
+  <!-- 模态框 4：多维异象与胜利目标界面 -->
+  <div id="modal-victory" class="modal-backdrop">
+    <div class="modal-window" style="width:640px;">
+      <div class="modal-header">
+        <h2>三大使徒异象胜利目标</h2>
+        <button class="close-btn" onclick="document.getElementById('modal-victory').classList.remove('active')">✕</button>
+      </div>
+      <div class="victory-routes-container">
+        <div class="victory-card">
+          <h4>👑 1. 地极见证 · 罗马凯歌（地极开拓胜利）</h4>
+          <p>在帝国的心脏<strong>罗马城建立教会</strong>，且在地中海沿线共建立<strong>至少 5 座教会</strong>，且<strong>总信徒达到 200 人</strong>。</p>
+          <div class="route-progress" id="prog-rome">进度：0/1 罗马教会，0/5 总教会，0/200 信徒</div>
+        </div>
+        <div class="victory-card">
+          <h4>📜 2. 真理柱石 · 信仰守望（神学圣徒胜利）</h4>
+          <p>研发全部 <strong>8 项双轨科技</strong>，且使希腊与小亚细亚三大哲学与宗教重镇（<strong>以弗所、雅典、安提阿</strong>）的刚硬度全部降至 <strong>15% 以下</strong>。</p>
+          <div class="route-progress" id="prog-theology">进度：0/8 科技，三大城尚未完全熔化</div>
+        </div>
+        <div class="victory-card">
+          <h4>🍞 3. 圣徒相通 · 普世合一（大爱周济胜利）</h4>
+          <p>全地<strong>总信徒突破 300 人</strong>，建立跨地中海连结，且当前爱心物资储备达到 <strong>150 点以上</strong>。</p>
+          <div class="route-progress" id="prog-charity">进度：0/300 信徒，0/150 物资</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -159,8 +190,7 @@
       <h3 id="chronicle-title">纪事载录</h3>
       <div class="chronicle-body" id="chronicle-content"></div>
       <div class="chronicle-changes" id="chronicle-changes"></div>
-      <!-- 羊皮纸烫金印纹按钮 -->
-      <button id="chronicle-confirm-btn">✦ 阿们 · 记在心上 ✦</button>
+      <button id="chronicle-confirm-btn" onclick="document.getElementById('modal-chronicle').classList.remove('active')">✦ 阿们 · 记在心上 ✦</button>
     </div>
   </div>
 
