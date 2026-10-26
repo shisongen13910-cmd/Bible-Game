@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>天路同行：圣经大富翁</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ==================== 一、赛前设置面板 (Lobby Overlay) ==================== -->
+  <div id="lobby-screen" class="screen-overlay active">
+    <div class="lobby-container">
+      <header class="lobby-header">
+        <div class="emblem">✞</div>
+        <h1>天路同行：圣经大富翁</h1>
+        <p class="subtitle">建立教会 · 牧养群羊 · 查考真道 · 奔走天路</p>
+      </header>
+
+      <div class="lobby-body">
+        <!-- 左侧：全局参数设置 -->
+        <div class="lobby-settings-col">
+          <div class="setting-group">
+            <label class="setting-label">👥 参与人数</label>
+            <div class="btn-group" id="player-count-group">
+              <button type="button" class="opt-btn" data-count="2">2 人</button>
+              <button type="button" class="opt-btn" data-count="3">3 人</button>
+              <button type="button" class="opt-btn active" data-count="4">4 人</button>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <label class="setting-label">🏆 游玩目标（胜利条件）</label>
+            <div class="radio-cards" id="win-goal-group">
+              <label class="radio-card active">
+                <input type="radio" name="winGoal" value="survival" checked />
+                <div class="rc-title">福音遍传（生存淘汰制）</div>
+                <div class="rc-desc">坚持到最后、未因破产退出的唯一玩家获胜</div>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="winGoal" value="believers" />
+                <div class="rc-title">大使命达成（信徒目标制）</div>
+                <div class="rc-desc">名下总信徒率先达到 15,000（小/中）或 30,000（大）获胜</div>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="winGoal" value="score" />
+                <div class="rc-title">天国荣耀（限时积分制）</div>
+                <div class="rc-desc">限定 40 回合，按「财富 + 信徒×2 + 信心×100」结算最高分</div>
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <label class="setting-label">🗺️ 地图规模</label>
+            <div class="btn-group" id="map-size-group">
+              <button type="button" class="opt-btn active" data-map="small">
+                小型：加利利环线<small>21格 · 快节奏</small>
+              </button>
+              <button type="button" class="opt-btn" data-map="medium">
+                中型：应许之地<small>28格 · 标准局</small>
+              </button>
+              <button type="button" class="opt-btn" data-map="large">
+                大型：直到地极<small>35格 · 史诗局</small>
+              </button>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <label class="setting-label">📖 题库难度（已连接 questions.json）</label>
+            <div class="btn-group" id="quiz-diff-group">
+              <button type="button" class="opt-btn active" data-diff="children">
+                儿童版（主日学级）<small>前 280 题 · 基础常识</small>
+              </button>
+              <button type="button" class="opt-btn" data-diff="study">
+                研经版（神学深研级）<small>全 1000 题 · 经文深研</small>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧：角色选择与固有呼召预览 -->
+        <div class="lobby-players-col">
+          <label class="setting-label">👑 角色分配与【固有呼召】</label>
+          <div id="lobby-player-slots" class="player-slots-grid">
+            <!-- 由 JS 动态渲染 2~4 个玩家选人卡片，此处提供静态结构模板 -->
+            <div class="player-slot-card" data-slot="0">
+              <div class="slot-header">
+                <span class="slot-badge p1-bg">P1</span>
+                <input type="text" class="player-name-input" value="玩家一" />
+                <select class="player-type-select">
+                  <option value="human">真人</option>
+                  <option value="ai">电脑AI</option>
+                </select>
+              </div>
+              <select class="char-select"></select>
+              <div class="char-skill-preview">
+                <div class="skill-title">【多国之父】</div>
+                <div class="skill-desc">初始信心 +20（开局70）；每次安息日休整每回合额外 +5 信心。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <footer class="lobby-footer">
+        <div id="question-load-status" class="load-status">正在读取圣经题库 questions.json ...</div>
+        <button type="button" id="btn-start-game" class="btn-primary btn-large">踏上天路（开始游戏）</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ==================== 二、主游戏舞台 (Main Game Stage) ==================== -->
+  <div id="game-stage" class="game-stage">
+
+    <!-- 1. 顶部中央：极简胶囊状态栏（带悬停详情浮窗） -->
+    <div id="top-hud-bar" class="top-hud-bar">
+      <div class="turn-indicator">
+        <span id="hud-round-num" class="round-badge" title="当前回合">R1</span>
+        <span id="hud-current-player" class="current-turn-name">亚伯拉罕</span>
+        <span id="hud-phase-text" class="phase-tag">准备投掷</span>
+      </div>
+
+      <!-- 悬停触发详情的图标 -->
+      <div class="hud-info-trigger">
+        <span class="info-icon-pill">🗺️ 局势详情</span>
+        <div class="hud-hover-popover">
+          <div id="popover-map-name" class="pop-line">🗺️ 地图：加利利福音环线</div>
+          <div id="hud-goal-summary" class="pop-line">🏆 目标：福音遍传</div>
+          <div id="popover-diff-name" class="pop-line">📖 题库：儿童版</div>
+        </div>
+      </div>
+
+      <!-- 纯图标视图控制按钮 -->
+      <div class="view-controls">
+        <button type="button" id="btn-reset-camera" class="hud-mini-btn" title="居中当前玩家视角">🎯</button>
+        <button type="button" id="btn-zoom-in" class="hud-mini-btn" title="放大地图">➕</button>
+        <button type="button" id="btn-zoom-out" class="hud-mini-btn" title="缩小地图">➖</button>
+        <button type="button" id="btn-toggle-rules" class="hud-mini-btn" title="打开圣工手册（规则速查）">📜</button>
+      </div>
+    </div>
+
+    <!-- 2. 可拖拽与缩放的全屏环形地图画布 -->
+    <div id="map-viewport" class="map-viewport">
+      <div id="map-canvas" class="map-canvas">
+        <!-- 棋盘中央装饰与实时日志区 -->
+        <div id="board-center-hub" class="board-center-hub">
+          <div class="center-compass">✞</div>
+          <h2 id="center-map-title" class="center-map-title">加利利福音环线</h2>
+          <div id="event-log-box" class="event-log-box">
+            <div class="log-entry">🌟 欢迎来到《天路同行》，愿主引导你的脚步！</div>
+          </div>
+        </div>
+
+        <!-- 方形地块容器（由 JS 按环形坐标动态生成 .board-tile） -->
+        <div id="tiles-container" class="tiles-container"></div>
+
+        <!-- 玩家棋子容器（由 JS 动态定位 .player-token） -->
+        <div id="tokens-container" class="tokens-container"></div>
+      </div>
+    </div>
+
+    <!-- 3. 四角玩家常驻 HUD 面板 (2~4人) -->
+    <div id="hud-players-container" class="hud-players-container">
+      <!-- P1 左上角 -->
+      <div id="hud-player-0" class="player-hud-card pos-top-left active-turn">
+        <div class="hud-card-header">
+          <div class="avatar-circle p1-border" id="p0-avatar">亚</div>
+          <div class="hud-title-wrap">
+            <div class="hud-player-name" id="p0-name">亚伯拉罕</div>
+            <div class="hud-char-skill" id="p0-skill" title="固有呼召">✨【多国之父】</div>
+          </div>
+          <span class="status-pill" id="p0-status">行动中</span>
+        </div>
+        <div class="hud-stats-grid">
+          <div class="stat-box wealth-box">
+            <span class="stat-label">💰 财富</span>
+            <span class="stat-val" id="p0-wealth">$10,000</span>
+          </div>
+          <div class="stat-box faith-box">
+            <span class="stat-label">🕊️ 信心</span>
+            <span class="stat-val" id="p0-faith">50</span>
+          </div>
+          <div class="stat-box church-box">
+            <span class="stat-label">⛪ 堂会</span>
+            <span class="stat-val" id="p0-churches">0 座</span>
+          </div>
+          <div class="stat-box believer-box">
+            <span class="stat-label">👥 信徒</span>
+            <span class="stat-val" id="p0-believers">0</span>
+          </div>
+        </div>
+        <div class="hud-gifts-bar" id="p0-gifts">
+          <span class="gifts-empty-hint">圣灵恩赐槽 (0/4)</span>
+        </div>
+      </div>
+
+      <!-- P2 右上角 -->
+      <div id="hud-player-1" class="player-hud-card pos-top-right"></div>
+      <!-- P3 左下角 -->
+      <div id="hud-player-2" class="player-hud-card pos-bottom-left"></div>
+      <!-- P4 右下角 -->
+      <div id="hud-player-3" class="player-hud-card pos-bottom-right"></div>
+    </div>
+
+    <!-- 4. 底部中央：骰子与回合操作控制台 -->
+    <div id="bottom-action-dock" class="bottom-action-dock">
+      <div class="dice-display-area">
+        <div id="dice-box-1" class="dice-cube">🎲</div>
+        <div id="dice-box-2" class="dice-cube hidden">🎲</div>
+      </div>
+      <div class="dock-buttons">
+        <button type="button" id="btn-open-gifts" class="btn-secondary">🕊️ 使用圣灵恩赐</button>
+        <button type="button" id="btn-roll-dice" class="btn-primary btn-roll">🎲 投掷骰子前进</button>
+        <button type="button" id="btn-end-turn" class="btn-secondary hidden">⏭️ 结束回合</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ==================== 三、模态弹窗层 (Modals) ==================== -->
+
+  <!-- 1. 晨更牧养：查经问答弹窗 (每回合最多抽查3座教会) -->
+  <div id="modal-quiz" class="modal-backdrop hidden">
+    <div class="modal-card parchment-modal quiz-modal">
+      <div class="modal-header">
+        <span class="modal-tag" id="quiz-progress-tag">晨更牧养查经 (第 1 / 3 座教会)</span>
+        <h3 id="quiz-church-title">⛪ 正在牧养：【哥林多教会】（3级 城镇会堂）</h3>
+        <p class="quiz-believer-info">
+          当前信徒：<strong id="quiz-current-believers">1,200</strong> 人
+          <span class="rule-tip">（答对信徒 +10% | 答错信徒减半且信心 -5）</span>
+        </p>
+      </div>
+
+      <div class="modal-body">
+        <div id="luke-skill-banner" class="skill-alert-banner hidden">
+          📜【路加·详尽考究】已为你自动排除一个错误选项，且答错不扣信心！
+        </div>
+        <div class="question-box">
+          <p id="quiz-question-text" class="question-text">题目加载中...</p>
+        </div>
+        <div id="quiz-options-list" class="options-grid">
+          <button type="button" class="quiz-opt-btn" data-idx="0">A. 选项一</button>
+          <button type="button" class="quiz-opt-btn" data-idx="1">B. 选项二</button>
+          <button type="button" class="quiz-opt-btn" data-idx="2">C. 选项三</button>
+          <button type="button" class="quiz-opt-btn" data-idx="3">D. 选项四</button>
+        </div>
+        <!-- 答题结果反馈区 -->
+        <div id="quiz-feedback-area" class="quiz-feedback hidden">
+          <div id="quiz-result-title" class="feedback-title">✅ 真道扎根！回答正确！</div>
+          <p id="quiz-result-desc" class="feedback-desc">会众大得造就，信徒人数增长了 10%！</p>
+          <div id="quiz-reference-tag" class="ref-tag">📖 经文出处：创世记 1:26-31</div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" id="btn-quiz-next" class="btn-primary hidden">继续下一项事工</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 地区禾场事工：建立教会 / 扩建堂会 / 奉献结算弹窗 -->
+  <div id="modal-tile-action" class="modal-backdrop hidden">
+    <div class="modal-card action-modal">
+      <div class="modal-header">
+        <span class="modal-tag" id="tile-modal-type-tag">宣教禾场</span>
+        <h3 id="tile-modal-title">📍 伯利恒</h3>
+      </div>
+      <div class="modal-body" id="tile-modal-body">
+        <p id="tile-modal-desc" class="action-desc"></p>
+        <div id="tile-stats-preview" class="stats-preview-box">
+          <!-- 动态填入地价、升级等级、预计信徒或奉献金额计算明细 -->
+        </div>
+      </div>
+      <div class="modal-footer" id="tile-modal-footer">
+        <button type="button" id="btn-tile-confirm" class="btn-primary">确认建立 ($1,200)</button>
+        <button type="button" id="btn-tile-cancel" class="btn-secondary">暂不建立</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 五旬节格：圣灵恩赐商店弹窗 -->
+  <div id="modal-pentecost" class="modal-backdrop hidden">
+    <div class="modal-card stained-glass-modal pentecost-modal">
+      <div class="modal-header">
+        <span class="modal-tag">🔥 五旬节圣灵降临</span>
+        <h3>🕊️ 祈求与领受【圣灵恩赐】</h3>
+        <p class="pentecost-sub">
+          当前可用信心：<strong id="pentecost-faith-val" class="highlight-faith">50</strong>
+          <span>（每位角色最多同时持有 4 张恩赐卡）</span>
+        </p>
+      </div>
+      <div class="modal-body">
+        <div id="pentecost-gifts-grid" class="gifts-shop-grid">
+          <!-- 由 JS 渲染 10 种圣灵恩赐商品卡片 -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-close-pentecost" class="btn-primary">完成领受，离开马可楼</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 试炼格：旷野信心试炼弹窗 -->
+  <div id="modal-trial" class="modal-backdrop hidden">
+    <div class="modal-card trial-modal">
+      <div class="modal-header">
+        <span class="modal-tag">⚡ 旷野信心试炼</span>
+        <h3 id="trial-title">【彼得履海】</h3>
+        <p id="trial-story" class="trial-story">《马太福音》14章：彼得在加利利海面上迎着风浪走向耶稣。</p>
+      </div>
+      <div class="modal-body">
+        <div class="faith-compare-bars">
+          <div class="compare-item">
+            <span class="c-label">试炼要求信心</span>
+            <span class="c-value req-val" id="trial-req-faith">50</span>
+          </div>
+          <div class="compare-vs">VS</div>
+          <div class="compare-item">
+            <span class="c-label">你的当前信心</span>
+            <span class="c-value cur-val" id="trial-player-faith">65</span>
+          </div>
+        </div>
+        <div id="trial-moses-tip" class="skill-alert-banner hidden">
+          🌊【摩西·旷野引导】已将试炼信心要求降低 15 点，且得胜奖励提升 50%！
+        </div>
+        <div id="trial-outcome-box" class="trial-outcome-box">
+          <div id="trial-outcome-title" class="outcome-title">🌟 试炼得胜！</div>
+          <p id="trial-outcome-desc" class="outcome-desc">风浪平静：信心 +12，随机获得 1 张【圣灵恩赐】！</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-trial-confirm" class="btn-primary">领受结果</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. 遥控骰子（云柱火柱）步数选择弹窗 -->
+  <div id="modal-remote-dice" class="modal-backdrop hidden">
+    <div class="modal-card small-modal">
+      <div class="modal-header">
+        <span class="modal-tag">🕊️ 圣灵恩赐：云柱火柱</span>
+        <h3>请选择本回合指定前进的步数</h3>
+      </div>
+      <div class="modal-body">
+        <div class="step-picker-grid" id="remote-dice-steps">
+          <button type="button" class="step-btn" data-step="1">1 步</button>
+          <button type="button" class="step-btn" data-step="2">2 步</button>
+          <button type="button" class="step-btn" data-step="3">3 步</button>
+          <button type="button" class="step-btn" data-step="4">4 步</button>
+          <button type="button" class="step-btn" data-step="5">5 步</button>
+          <button type="button" class="step-btn" data-step="6">6 步</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. 通用目标选择器弹窗（用于腓利被提、尼希米筑墙、洁净圣殿、五饼二鱼） -->
+  <div id="modal-target-picker" class="modal-backdrop hidden">
+    <div class="modal-card action-modal">
+      <div class="modal-header">
+        <span class="modal-tag" id="picker-gift-tag">🕊️ 发动圣灵恩赐</span>
+        <h3 id="picker-title">请选择目标教会</h3>
+      </div>
+      <div class="modal-body">
+        <div id="picker-list" class="target-picker-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-picker-cancel" class="btn-secondary">取消发动</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. 财务赤字：强制 3 折变卖堂会清算弹窗 -->
+  <div id="modal-liquidation" class="modal-backdrop hidden">
+    <div class="modal-card danger-modal">
+      <div class="modal-header">
+        <span class="modal-tag">⚠️ 财务赤字预警</span>
+        <h3>经费短缺，必须变卖堂会以偿还亏空</h3>
+        <p class="liquidation-sub">
+          当前负债：<strong id="liq-current-wealth" class="text-danger">-$1,400</strong>
+          <span>（必须变卖堂会直至财富 ≥ $0，变卖按累计投入的 30% 回收）</span>
+        </p>
+      </div>
+      <div class="modal-body">
+        <div id="liq-church-list" class="liq-church-list">
+          <!-- 动态列出名下可3折变卖的教会 -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-liq-finish" class="btn-primary" disabled>已完成清算，继续天路</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. 圣工手册（规则速查弹窗） -->
+  <div id="modal-rules" class="modal-backdrop hidden">
+    <div class="modal-card rules-modal">
+      <div class="modal-header">
+        <span class="modal-tag">📜 游戏规则速查</span>
+        <h3>《天路同行》圣工手册</h3>
+      </div>
+      <div class="modal-body rules-scroll-body">
+        <h4>1. 教会建立与扩建（最高 7 级）</h4>
+        <p>建立教会（1级）与每次扩建均花费基础地价 <code>P</code>。1级初始信徒为 <code>P/10</code>，升至第 k 级增加 <code>(k/10)×P</code> 信徒（7级累计基础信徒为 <code>2.8×P</code>）。</p>
+        <h4>2. 晨更查经问答（每回合最多抽查 3 座教会）</h4>
+        <p>回合开始时抽取名下最多 3 座教会答题。答对则该教会信徒 <strong>+10%</strong>；答错则信徒 <strong>-50%</strong> 且玩家自身 <strong>信心 -5</strong>。</p>
+        <h4>3. 访问同工与爱心奉献（过路费公式）</h4>
+        <p>若所在教会信徒数 <code>B ≥ 当前玩家信心 × 10</code>，支付 <code>max(自身财产的1/10, 教会信徒数 B)</code>；否则支付 <code>min(教会信徒数 B, 等级 × 地价 / 10)</code>。</p>
+        <h4>4. 安息日、五旬节与财务破产</h4>
+        <p><strong>安息日格</strong>：逢七出现，停留 1 回合，当回合与下回合各 +5 信心。<br>
+        <strong>五旬节格</strong>：消耗信心领受圣灵恩赐。<br>
+        <strong>破产清算</strong>：财富低于 0 时，需按 <code>等级 × 地价 × 0.3</code>（3折）变卖名下教会；若无教会可变卖则淘汰出局。</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-close-rules" class="btn-primary">关闭手册</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. 游戏终局胜利结算弹窗 -->
+  <div id="modal-gameover" class="modal-backdrop hidden">
+    <div class="modal-card gameover-modal">
+      <div class="modal-header">
+        <div class="emblem">👑</div>
+        <h2 id="gameover-title">那美好的仗已经打过了！</h2>
+        <p id="gameover-subtitle" class="subtitle">当跑的路已经跑尽了，所信的道已经守住了</p>
+      </div>
+      <div class="modal-body">
+        <div id="gameover-rankings" class="rankings-table">
+          <!-- 动态生成最终玩家排名 -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-restart-game" class="btn-primary btn-large">返回大厅重新开始</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 后续接入游戏逻辑脚本 -->
+  <script src="game.js"></script>
+</body>
+</html>
