@@ -1,3 +1,9 @@
+// 昵称保留原始文本，只在拼入 HTML 时转义，避免标签或属性被浏览器解析。
+function escapeHtml(value) {
+  const entities = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  return String(value).replace(/[&<>"']/g, char => entities[char]);
+}
+
 // 全局状态
 const PRESET_PLAYERS = [
   { name: "彼得 (Peter)", color: "#c92a2a" },
@@ -487,7 +493,7 @@ function finishGameAndShowLeaderboard() {
     const item = document.createElement("div");
     item.className = "leader-item";
     item.innerHTML = `
-      <span>第 ${rank + 1} 名：<strong style="color:${p.color}">${p.name}</strong> ${p.position >= 70 ? '（抵达成圣之城）' : `（驻足第${p.position}格）`}</span>
+      <span>第 ${rank + 1} 名：<strong style="color:${p.color}">${escapeHtml(p.name)}</strong> ${p.position >= 70 ? '（抵达成圣之城）' : `（驻足第${p.position}格）`}</span>
       <span>最终信心分：<strong>${p.faith}</strong> 点</span>
     `;
     container.appendChild(item);
@@ -515,7 +521,7 @@ function updateUI() {
     card.innerHTML = `
       <div>
         <span class="roster-color-dot" style="background:${p.color}"></span>
-        <strong>${p.name}</strong>
+        <strong>${escapeHtml(p.name)}</strong>
       </div>
       <div>
         格: ${p.position}/70 | 信心: <strong>${p.faith}</strong>

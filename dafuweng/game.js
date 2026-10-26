@@ -429,6 +429,12 @@ document.addEventListener("DOMContentLoaded", () => {
   bindGlobalButtons();
 });
 
+// 昵称保留原始文本，只在拼入 HTML 时转义，避免标签或属性被浏览器解析。
+function escapeHtml(value) {
+  const entities = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  return String(value).replace(/[&<>"']/g, char => entities[char]);
+}
+
 // 动态创建屏幕正中央事件横幅容器
 function ensureCenterToastContainer() {
   if (!document.getElementById("center-toast-container")) {
@@ -455,12 +461,17 @@ function showEventPopup(icon, title, desc, borderColor = "#f2c94c", duration = 2
   card.className = "event-toast-card";
   card.style.borderColor = borderColor;
   card.innerHTML = `
-    <div class="toast-icon-badge">${icon}</div>
+    <div class="toast-icon-badge"></div>
     <div class="toast-content-wrap">
-      <div class="toast-title" style="color:${borderColor};">${title}</div>
-      <div class="toast-desc">${desc}</div>
+      <div class="toast-title"></div>
+      <div class="toast-desc"></div>
     </div>
   `;
+  card.querySelector(".toast-icon-badge").textContent = icon;
+  const titleEl = card.querySelector(".toast-title");
+  titleEl.style.color = borderColor;
+  titleEl.textContent = title;
+  card.querySelector(".toast-desc").textContent = desc;
 
   container.appendChild(card);
 
@@ -556,7 +567,7 @@ function renderLobbyPlayerSlots() {
     card.innerHTML = `
       <div class="slot-header">
         <span class="slot-badge p${i + 1}-bg">P${i + 1}·${PLAYER_COLOR_NAMES[i]}</span>
-        <input type="text" class="player-name-input" value="${slotData.name}" data-idx="${i}" />
+        <input type="text" class="player-name-input" value="" data-idx="${i}" />
         <select class="player-type-select" data-idx="${i}">
           <option value="human" ${slotData.type === "human" ? "selected" : ""}>真人</option>
           <option value="ai" ${slotData.type === "ai" ? "selected" : ""}>电脑AI</option>
@@ -574,6 +585,7 @@ function renderLobbyPlayerSlots() {
         <div class="skill-desc">${charObj.skillDesc}</div>
       </div>
     `;
+    card.querySelector(".player-name-input").value = slotData.name;
     container.appendChild(card);
   }
 
@@ -773,7 +785,7 @@ function updateSingleTileDOM(tileIdx) {
   if (tile.owner !== null) {
     el.classList.add(`owner-${tile.owner}`);
     const ownerPlayer = gameState.players[tile.owner];
-    ownerRibbonHtml = `<div class="tile-owner-ribbon" style="background:${ownerPlayer.color};">🚩 ${ownerPlayer.name} (${ownerPlayer.charName})</div>`;
+    ownerRibbonHtml = `<div class="tile-owner-ribbon" style="background:${ownerPlayer.color};">🚩 ${escapeHtml(ownerPlayer.name)} (${ownerPlayer.charName})</div>`;
   }
 
   let icon = "🏛️";
@@ -948,7 +960,7 @@ function renderAllPlayersHUD() {
         <div class="hud-title-wrap">
           <div class="hud-player-name">
             <span class="turn-color-dot" style="background:${p.color};"></span>
-            ${p.name} · ${p.charName}${p.isAI ? " (AI)" : ""}
+            ${escapeHtml(p.name)} · ${p.charName}${p.isAI ? " (AI)" : ""}
           </div>
           <div class="hud-char-skill" title="${p.skillDesc}">✨${p.skillName}</div>
         </div>
@@ -997,7 +1009,7 @@ function updateTopHudBar() {
   // 去掉“第X回合”、“当前行动：”等冗余前缀，只留核心信息
   document.getElementById("hud-round-num").textContent = `R${gameState.round}`;
   document.getElementById("hud-current-player").innerHTML =
-    `<span class="turn-color-dot" style="background:${p.color};"></span>${p.name}·${p.charName}`;
+    `<span class="turn-color-dot" style="background:${p.color};"></span>${escapeHtml(p.name)}·${p.charName}`;
 
   const mapCfg = MAPS_DATA[gameState.lobby.mapSize];
   const goalMap = {
@@ -1149,7 +1161,7 @@ function runMorningChurchQuizPhase(player, churches) {
     tagEl.textContent = `👤 答题者：${player.name}（${player.charName}） | 第 ${currentQuizIdx + 1} / ${selectedChurches.length} 座教会`;
 
     document.getElementById("quiz-church-title").innerHTML =
-      `<span style="color:${player.color};">【${player.name}】</span>正在牧养：⛪【${churchTile.name}教会】（${churchTile.level}级 ${CHURCH_RANK_NAMES[churchTile.level]}）`;
+      `<span style="color:${player.color};">【${escapeHtml(player.name)}】</span>正在牧养：⛪【${churchTile.name}教会】（${churchTile.level}级 ${CHURCH_RANK_NAMES[churchTile.level]}）`;
     document.getElementById("quiz-current-believers").textContent = churchTile.believers.toLocaleString();
     document.getElementById("quiz-question-text").textContent = qObj.question;
 
@@ -2097,7 +2109,7 @@ function openChurchTargetSelection(title, tilesList, onSelect) {
     item.style.borderLeft = `4px solid ${owner.color}`;
     item.innerHTML = `
       <div>
-        <strong>⛪ ${t.name}教会</strong>（${t.level}级 · 归属：${owner.name}）
+        <strong>⛪ ${t.name}教会</strong>（${t.level}级 · 归属：${escapeHtml(owner.name)}）
         <div style="font-size:0.8rem;color:#b59f7e;">当前信徒：${t.believers.toLocaleString()} 人</div>
       </div>
       <button type="button" class="btn-primary" style="padding:6px 14px;font-size:0.84rem;">选择此堂会</button>
@@ -2211,7 +2223,7 @@ function showGameOverModal(winner, reasonText) {
       <div class="picker-item" style="margin-bottom:8px;border-left:5px solid ${p.color};border-color:${idx === 0 ? "#f2c94c" : "#59442e"};">
         <div>
           <strong style="font-size:1rem;color:${idx === 0 ? "#f2c94c" : "#fff"};">
-            第 ${idx + 1} 名：${p.name}（${p.charName}） ${p.eliminated ? "[已退场]" : ""}
+            第 ${idx + 1} 名：${escapeHtml(p.name)}（${p.charName}） ${p.eliminated ? "[已退场]" : ""}
           </strong>
           <div style="font-size:0.82rem;color:#d1bfa3;margin-top:3px;">
             ⛪ 堂会：${churches} 座 | 👥 总信徒：${believers.toLocaleString()} 人 | 💰 财富：$${p.wealth.toLocaleString()} | 🕊️ 信心：${p.faith}
