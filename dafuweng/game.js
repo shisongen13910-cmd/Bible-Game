@@ -135,7 +135,7 @@ const CHARACTERS = [
     title: "信心之父（旧约）",
     skillName: "【多国之父】",
     skillDesc: "初始信心额外 +20（开局70信心）；每次在安息日格休整时，当回合与停留回合各额外 +5 信心（共得20信心）。",
-    voice: { pitch: 0.78, rate: 0.92 },
+    voice: { pitch: 0.66, rate: 0.86, slot: 0, prefer: ["Yunjian", "Yunyang", "Kangkang", "Danny"] },
     quotes: {
       positive: [
         "仰望天上的众星，耶和华必预备一切！",
@@ -156,7 +156,7 @@ const CHARACTERS = [
     title: "律法与领路人（旧约）",
     skillName: "【旷野引导】",
     skillDesc: "停留在试炼格时，试炼要求的信心门槛永久降低 15 点；且通过试炼获得的财富与信心奖励提升 50%。",
-    voice: { pitch: 0.82, rate: 0.95 },
+    voice: { pitch: 0.74, rate: 0.92, slot: 1, prefer: ["Yunjian", "Kangkang", "Yunyang", "WanLung"] },
     quotes: {
       positive: [
         "不要惧怕，只管站住，看耶和华今日向我们所要施行的救恩！",
@@ -177,7 +177,7 @@ const CHARACTERS = [
     title: "合神心意的王（旧约）",
     skillName: "【赞美诗篇】",
     skillDesc: "回合开始的教会查经问答中，每答对 1 道题，除教会信徒 +10% 外，自身额外恢复 +3 信心与 +$300 财富。",
-    voice: { pitch: 1.12, rate: 1.04 },
+    voice: { pitch: 1.18, rate: 1.08, slot: 2, prefer: ["Yunxi", "Yunxia", "YunJhe", "Kangkang"] },
     quotes: {
       positive: [
         "哈利路亚！我的心哪，你要弹琴称颂耶和华的圣名！",
@@ -198,7 +198,7 @@ const CHARACTERS = [
     title: "智慧与圣殿之王（旧约）",
     skillName: "【圣殿建造者】",
     skillDesc: "初始财富额外 +$3,000（开局$13,000）；将教会扩建至 5~7 级时，扩建费用享受 8 折优惠。",
-    voice: { pitch: 0.95, rate: 0.98 },
+    voice: { pitch: 0.85, rate: 0.94, slot: 3, prefer: ["Yunyang", "Yunjian", "Kangkang", "YunJhe"] },
     quotes: {
       positive: [
         "敬畏耶和华是智慧的开端，愿这宏伟圣殿充满主的荣光！",
@@ -219,7 +219,7 @@ const CHARACTERS = [
     title: "教会磐石（新约）",
     skillName: "【磐石牧养】",
     skillDesc: "建立 1 级教会时初始信徒数翻倍（2/10地价）；且名下教会问答答错时，信徒仅减少 25%（常规减少50%）。",
-    voice: { pitch: 0.88, rate: 1.02 },
+    voice: { pitch: 0.82, rate: 1.06, slot: 4, prefer: ["Yunjian", "Yunxi", "Kangkang"] },
     quotes: {
       positive: [
         "你是基督，是永生神的儿子！在这磐石上教会必稳固建立！",
@@ -240,7 +240,7 @@ const CHARACTERS = [
     title: "外邦人的使徒（新约）",
     skillName: "【宣教热忱】",
     skillDesc: "每次路过或停留起点【耶路撒冷】时，除获得 $1,000 外，名下所有已建教会的信徒立即额外增加 5%。",
-    voice: { pitch: 0.96, rate: 1.05 },
+    voice: { pitch: 0.92, rate: 1.10, slot: 5, prefer: ["Yunyang", "Yunxi", "Kangkang"] },
     quotes: {
       positive: [
         "忘记背后，努力面前的，向着标竿直跑，把福音传到地极！",
@@ -261,7 +261,7 @@ const CHARACTERS = [
     title: "劝慰子（新约）",
     skillName: "【甘心劝慰】",
     skillDesc: "访问他人教会支付奉献款时减免 25%；当其他玩家访问巴拿巴的教会奉献时，巴拿巴额外获得 +5 信心。",
-    voice: { pitch: 1.04, rate: 0.98 },
+    voice: { pitch: 0.98, rate: 0.93, slot: 6, prefer: ["Yunxi", "YunJhe", "Kangkang"] },
     quotes: {
       positive: [
         "看哪，弟兄和睦同居是何等的善，何等的美！",
@@ -282,7 +282,7 @@ const CHARACTERS = [
     title: "博学医者与史家（新约）",
     skillName: "【详尽考究】",
     skillDesc: "教会查经问答时，系统自动排除 1 个错误选项（四选一变三选一）；且答错时自身不扣信心。",
-    voice: { pitch: 1.08, rate: 1.02 },
+    voice: { pitch: 1.06, rate: 1.01, slot: 7, prefer: ["YunJhe", "Yunxi", "Yunyang", "Kangkang"] },
     quotes: {
       positive: [
         "从起头都详细考察了，按着次序记载，使人知晓所学之道都是确实的！",
@@ -596,17 +596,36 @@ function enqueueNarrator(icon, title, desc, borderColor = "#f2c94c", duration = 
   processPopupQueue();
 }
 
+let activeAudioElement = null;
+let cachedZhVoices = [];
+
+if ("speechSynthesis" in window) {
+  const updateVoices = () => {
+    cachedZhVoices = window.speechSynthesis.getVoices().filter(
+      v => v.lang && (v.lang.toLowerCase().includes("zh") || v.lang.toLowerCase().includes("cmn"))
+    );
+  };
+  updateVoices();
+  window.speechSynthesis.onvoiceschanged = updateVoices;
+}
+
 function enqueueCharSpeech(player, mood = "positive", contextLabel = "", customQuote = null) {
   if (!player) return;
   const charObj = CHARACTERS.find(c => c.id === player.charId) || CHARACTERS[0];
   const pool = mood === "negative" ? charObj.quotes.negative : charObj.quotes.positive;
-  const quoteText = customQuote || pool[Math.floor(Math.random() * pool.length)];
+  let quoteIdx = Math.floor(Math.random() * pool.length);
+  if (customQuote) {
+    const foundIdx = pool.indexOf(customQuote);
+    quoteIdx = foundIdx >= 0 ? foundIdx : -1;
+  }
+  const quoteText = customQuote || pool[quoteIdx];
 
   popupQueue.push({
     kind: "speech",
     player,
     charObj,
     mood,
+    quoteIdx,
     contextLabel,
     quoteText
   });
@@ -640,7 +659,7 @@ function processPopupQueue() {
   const card = document.createElement("div");
 
   if (item.kind === "narrator") {
-    // 旁白框：不朗读，仅伴随轻柔提示音
+    // 旁白框：不朗读，仅伴随温润古卷提示音
     playChimeSound("narrator");
     card.className = "event-toast-card narrator-card";
     card.style.borderColor = item.borderColor;
@@ -663,8 +682,8 @@ function processPopupQueue() {
       }, 260);
     }, item.duration);
   } else if (item.kind === "speech") {
-    // 角色对话语音框：左头像 + 右台词 + 真人语音朗读
-    const { player, charObj, mood, contextLabel, quoteText } = item;
+    // 角色对话语音框：左头像 + 右台词 + 双模自适应男声配音（优先本地 Neural MP3，无缝降级智能多男声引擎）
+    const { player, charObj, mood, quoteIdx, contextLabel, quoteText } = item;
     const isPos = mood !== "negative";
     playChimeSound(isPos ? "positive" : "negative");
 
@@ -681,7 +700,7 @@ function processPopupQueue() {
       <div class="rpg-dialogue-col">
         <div class="rpg-quote-header">
           <span>👑 ${charObj.name} ${contextLabel ? `· ${contextLabel}` : ""}</span>
-          <span class="voice-wave-icon">${gameState.voiceEnabled ? "🔊 配音中" : "💬 台词"}</span>
+          <span class="voice-wave-icon">${gameState.voiceEnabled ? "🔊 男声配音中" : "💬 台词"}</span>
         </div>
         <div class="rpg-quote-bubble" style="border-left-color:${player.color};">
           “${quoteText}”
@@ -690,7 +709,7 @@ function processPopupQueue() {
     `;
     container.appendChild(card);
 
-    speakQuoteWithDuration(quoteText, charObj.voice).then(() => {
+    speakQuoteDualMode(charObj, mood, quoteIdx, quoteText).then(() => {
       card.classList.add("toast-fade-out");
       setTimeout(() => {
         if (card.parentNode === container) container.removeChild(card);
@@ -701,10 +720,117 @@ function processPopupQueue() {
   }
 }
 
-// Web Speech API 朗读并在读完后 resolve（若关闭语音或不支持则按字数定时停留）
-function speakQuoteWithDuration(text, voiceCfg = { pitch: 1, rate: 1 }) {
+/**
+ * 双模自适应配音核心：
+ * 模式 A：优先尝试播放 `./voices/{charId}_{pos|neg}_{idx}.mp3`（由 generate_voices.py 生成的微软 Neural 真人男声）
+ * 模式 B：若本地未生成 MP3 或加载失败，自动启用【智能多男声优选 + 标点分句抑扬顿挫引擎】
+ */
+function speakQuoteDualMode(charObj, mood, quoteIdx, text) {
   const fallbackMs = Math.max(2200, text.length * 145);
+  if (!gameState.voiceEnabled) {
+    return new Promise(res => setTimeout(res, fallbackMs));
+  }
 
+  const moodKey = mood === "negative" ? "neg" : "pos";
+  if (typeof quoteIdx === "number" && quoteIdx >= 0) {
+    const mp3Path = `voices/${charObj.id}_${moodKey}_${quoteIdx}.mp3`;
+    return new Promise(resolve => {
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        activeAudioElement = null;
+        setTimeout(resolve, 360);
+      };
+
+      try {
+        if (activeAudioElement) {
+          activeAudioElement.pause();
+          activeAudioElement = null;
+        }
+        const audio = new Audio(mp3Path);
+        activeAudioElement = audio;
+        audio.onended = done;
+        audio.onerror = () => {
+          if (settled) return;
+          settled = true;
+          activeAudioElement = null;
+          speakWithSmartMaleWebSpeech(text, charObj.voice, mood).then(resolve);
+        };
+
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            if (settled) return;
+            settled = true;
+            activeAudioElement = null;
+            speakWithSmartMaleWebSpeech(text, charObj.voice, mood).then(resolve);
+          });
+        }
+        // 安全超时保护
+        setTimeout(done, Math.max(4500, text.length * 250));
+      } catch (err) {
+        speakWithSmartMaleWebSpeech(text, charObj.voice, mood).then(resolve);
+      }
+    });
+  }
+
+  return speakWithSmartMaleWebSpeech(text, charObj.voice, mood);
+}
+
+/**
+ * 挑选最契合当前圣经男性角色的浏览器内置男声：
+ * 1. 严格剔除已知机械女声（Huihui, Yaoyao, Xiaoxiao, Xiaoyi, HsiaoChen 等），优先锁定男声（Yunjian, Yunyang, Yunxi, Kangkang, YunJhe, WanLung）
+ * 2. 若系统存在多个男声，根据每个角色的 prefer 列表与 slot 索引分配不同音源
+ */
+function pickBestMaleVoiceForChar(voiceCfg = {}) {
+  if (!("speechSynthesis" in window)) return null;
+  const allVoices = window.speechSynthesis.getVoices();
+  const zhVoices = allVoices.filter(
+    v => v.lang && (v.lang.toLowerCase().includes("zh") || v.lang.toLowerCase().includes("cmn"))
+  );
+  if (zhVoices.length === 0) return null;
+
+  const maleKeywords = ["yunjian", "yunyang", "yunxi", "yunxia", "yunjhe", "wanlung", "kangkang", "danny", "male", "男"];
+  const femaleKeywords = ["huihui", "yaoyao", "xiaoxiao", "xiaoyi", "hsiaochen", "hsiaoyu", "hiugaai", "hiumaan", "ting-ting", "meijia", "sin-ji", "female", "女"];
+
+  // 1. 先按角色专属偏好词精确查找
+  if (Array.isArray(voiceCfg.prefer)) {
+    for (const kw of voiceCfg.prefer) {
+      const matched = zhVoices.find(v => v.name.toLowerCase().includes(kw.toLowerCase()));
+      if (matched) return matched;
+    }
+  }
+
+  // 2. 筛选出所有明确的中文男声池，按角色 slot 错位分配
+  const malePool = zhVoices.filter(v => {
+    const n = v.name.toLowerCase();
+    return maleKeywords.some(k => n.includes(k));
+  });
+  if (malePool.length > 0) {
+    const slot = typeof voiceCfg.slot === "number" ? voiceCfg.slot : 0;
+    return malePool[slot % malePool.length];
+  }
+
+  // 3. 退而求其次：排除明确的女声名字
+  const nonFemalePool = zhVoices.filter(v => {
+    const n = v.name.toLowerCase();
+    return !femaleKeywords.some(k => n.includes(k));
+  });
+  if (nonFemalePool.length > 0) {
+    const slot = typeof voiceCfg.slot === "number" ? voiceCfg.slot : 0;
+    return nonFemalePool[slot % nonFemalePool.length];
+  }
+
+  return zhVoices[0];
+}
+
+/**
+ * 智能分句与情绪韵律 Web Speech 朗读引擎：
+ * 按标点符号将长台词拆分为短句依次朗读，根据积极/消极情绪动态赋予前后半句的语速与音高变化，消除单调生硬感
+ */
+function speakWithSmartMaleWebSpeech(text, voiceCfg = { pitch: 0.85, rate: 0.95 }, mood = "positive") {
+  const fallbackMs = Math.max(2200, text.length * 145);
   if (!gameState.voiceEnabled || !("speechSynthesis" in window)) {
     return new Promise(res => setTimeout(res, fallbackMs));
   }
@@ -714,76 +840,235 @@ function speakQuoteWithDuration(text, voiceCfg = { pitch: 1, rate: 1 }) {
     const finish = () => {
       if (settled) return;
       settled = true;
-      setTimeout(resolve, 420); // 读完后留 0.42 秒余韵再消失
+      setTimeout(resolve, 380);
     };
 
     try {
       window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "zh-CN";
-      utter.pitch = voiceCfg.pitch || 1.0;
-      utter.rate = voiceCfg.rate || 1.0;
+      const chosenVoice = pickBestMaleVoiceForChar(voiceCfg);
 
-      const voices = window.speechSynthesis.getVoices();
-      const zhVoice = voices.find(v => v.lang && v.lang.includes("zh"));
-      if (zhVoice) utter.voice = zhVoice;
+      // 将台词按主标点拆分为最多 2~3 个自然语义子句，赋予抑扬顿挫
+      const segments = text
+        .split(/(?<=[，。！？；……])/g)
+        .map(s => s.trim())
+        .filter(Boolean);
 
-      utter.onend = finish;
-      utter.onerror = finish;
-      window.speechSynthesis.speak(utter);
+      if (segments.length === 0) segments.push(text);
 
-      // 安全超时保护（防止部分浏览器 speechSynthesis 挂起不触发 onend）
-      setTimeout(finish, Math.max(3600, text.length * 230));
+      const basePitch = voiceCfg.pitch || 0.88;
+      const baseRate = voiceCfg.rate || 0.96;
+      const isNeg = mood === "negative";
+
+      let currentSeg = 0;
+
+      const speakNextSegment = () => {
+        if (settled) return;
+        if (currentSeg >= segments.length) {
+          finish();
+          return;
+        }
+
+        const segText = segments[currentSeg];
+        const utter = new SpeechSynthesisUtterance(segText);
+        utter.lang = chosenVoice ? chosenVoice.lang : "zh-CN";
+        if (chosenVoice) utter.voice = chosenVoice;
+
+        // 情绪语调曲线：积极台词句尾微扬、节奏明快；消极台词句尾低回、语速放缓
+        const progress = segments.length > 1 ? currentSeg / (segments.length - 1) : 0.5;
+        const moodPitchOffset = isNeg ? (-0.08 - progress * 0.06) : (0.02 + progress * 0.06);
+        const moodRateOffset = isNeg ? (-0.07 - progress * 0.04) : (0.02 + progress * 0.03);
+
+        utter.pitch = Math.max(0.5, Math.min(1.45, basePitch + moodPitchOffset));
+        utter.rate = Math.max(0.72, Math.min(1.3, baseRate + moodRateOffset));
+
+        utter.onend = () => {
+          currentSeg++;
+          // 子句之间留出 65ms 自然换气停顿
+          setTimeout(speakNextSegment, 65);
+        };
+        utter.onerror = () => {
+          currentSeg++;
+          speakNextSegment();
+        };
+
+        window.speechSynthesis.speak(utter);
+      };
+
+      speakNextSegment();
+
+      // 安全超时保护
+      setTimeout(finish, Math.max(3800, text.length * 240));
     } catch (e) {
       setTimeout(finish, fallbackMs);
     }
   });
 }
 
-// Web Audio API 轻柔提示音（旁白轻响 / 积极竖琴音 / 消极低沉音）
-function playChimeSound(type) {
-  if (!gameState.voiceEnabled) return;
+// ==================== 圣殿古典合成音效引擎 (Web Audio API 泛音与滤波合成) ====================
+
+function ensureAudioCtx() {
+  if (!gameState.voiceEnabled) return null;
   try {
     if (!audioCtx) {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (AudioContextClass) audioCtx = new AudioContextClass();
     }
-    if (!audioCtx) return;
-    if (audioCtx.state === "suspended") audioCtx.resume();
-
-    const now = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    if (type === "narrator") {
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(523.25, now); // C5
-      gain.gain.setValueAtTime(0.06, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-      osc.start(now);
-      osc.stop(now + 0.22);
-    } else if (type === "positive") {
-      osc.type = "triangle";
-      osc.frequency.setValueAtTime(587.33, now); // D5
-      osc.frequency.setValueAtTime(880.0, now + 0.11); // A5
-      gain.gain.setValueAtTime(0.09, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
-      osc.start(now);
-      osc.stop(now + 0.38);
-    } else {
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(329.63, now); // E4
-      osc.frequency.setValueAtTime(261.63, now + 0.14); // C4
-      gain.gain.setValueAtTime(0.09, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
-      osc.start(now);
-      osc.stop(now + 0.42);
+    if (audioCtx && audioCtx.state === "suspended") {
+      audioCtx.resume();
     }
+    return audioCtx;
   } catch (e) {
-    // 忽略音频上下文限制报错
+    return null;
   }
+}
+
+// 辅助函数：播放带泛音包络的单个乐音
+function playSynthNote(ctx, freq, startTime, duration, peakGain = 0.08, waveType = "triangle") {
+  const osc = ctx.createOscillator();
+  const subOsc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = waveType;
+  osc.frequency.setValueAtTime(freq, startTime);
+
+  // 叠加纯八度柔音增强厚重感
+  subOsc.type = "sine";
+  subOsc.frequency.setValueAtTime(freq * 0.5, startTime);
+
+  const subGain = ctx.createGain();
+  subGain.gain.setValueAtTime(peakGain * 0.35, startTime);
+  subGain.gain.exponentialRampToValueAtTime(0.0008, startTime + duration);
+
+  gain.gain.setValueAtTime(0.001, startTime);
+  gain.gain.linearRampToValueAtTime(peakGain, startTime + Math.min(0.025, duration * 0.2));
+  gain.gain.exponentialRampToValueAtTime(0.0008, startTime + duration);
+
+  osc.connect(gain);
+  subOsc.connect(subGain);
+  gain.connect(ctx.destination);
+  subGain.connect(ctx.destination);
+
+  osc.start(startTime);
+  subOsc.start(startTime);
+  osc.stop(startTime + duration + 0.02);
+  subOsc.stop(startTime + duration + 0.02);
+}
+
+// 弹窗出场提示音（旁白古卷音 / 积极大卫竖琴琶音 / 消极低沉弦乐音）
+function playChimeSound(type) {
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    if (type === "narrator") {
+      // 温润古木卷轴轻响（五度双音 C5 -> G5）
+      playSynthNote(ctx, 523.25, now, 0.16, 0.045, "sine");
+      playSynthNote(ctx, 783.99, now + 0.06, 0.22, 0.035, "triangle");
+    } else if (type === "positive") {
+      // 大卫竖琴明亮大三和弦上行琶音 (D5 - F#5 - A5 - D6)
+      const notes = [587.33, 739.99, 880.0, 1174.66];
+      notes.forEach((f, idx) => {
+        playSynthNote(ctx, f, now + idx * 0.055, 0.36, 0.065, "triangle");
+      });
+    } else {
+      // 旷野叹息柔和下行小三度双音 (E4 -> C#4 -> A3)
+      const notes = [329.63, 277.18, 220.0];
+      notes.forEach((f, idx) => {
+        playSynthNote(ctx, f, now + idx * 0.09, 0.38, 0.06, "sine");
+      });
+    }
+  } catch (e) {}
+}
+
+/**
+ * 6大核心交互立体音效合成器：
+ * - "dice"    : 投掷骰子清脆木盘碰撞滚动声
+ * - "step"    : 棋子天路踏步羊皮鼓点声
+ * - "coin"    : 耶路撒冷供给 / 奉献银币叮当声
+ * - "build"   : 开荒植堂 / 扩建圣殿庄严铜钟与竖琴和弦
+ * - "quizOk"  : 查经答对明亮竖琴泛音
+ * - "quizBad" : 查经答错低沉提琴提示
+ * - "gift"    : 圣灵恩赐神圣空灵泛音
+ * - "victory" : 终局获胜禧年羊角号与管风琴凯歌
+ */
+function playSoundEffect(effectType) {
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+
+    if (effectType === "dice") {
+      // 模拟骰子在木盘上 5 次快速弹跳颗粒声
+      const bounceTimes = [0, 0.065, 0.13, 0.21, 0.31];
+      bounceTimes.forEach((t, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        const baseFreq = 280 + (idx * 55) + Math.random() * 60;
+        osc.frequency.setValueAtTime(baseFreq, now + t);
+        osc.frequency.exponentialRampToValueAtTime(95, now + t + 0.045);
+
+        gain.gain.setValueAtTime(0.09 * (1 - idx * 0.12), now + t);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + t + 0.048);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + t);
+        osc.stop(now + t + 0.05);
+      });
+    } else if (effectType === "step") {
+      // 轻巧温润的羊皮手鼓踏步声
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(145, now);
+      osc.frequency.exponentialRampToValueAtTime(52, now + 0.075);
+
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.085);
+    } else if (effectType === "coin") {
+      // 古代舍客勒银币清脆双响 (B5 -> E6)
+      playSynthNote(ctx, 987.77, now, 0.18, 0.06, "sine");
+      playSynthNote(ctx, 1318.51, now + 0.075, 0.32, 0.07, "triangle");
+    } else if (effectType === "build") {
+      // 圣殿建造庄严大三和弦钟琴 (C4 - G4 - C5 - E5 - G5)
+      const chord = [261.63, 392.00, 523.25, 659.25, 783.99];
+      chord.forEach((freq, i) => {
+        playSynthNote(ctx, freq, now + i * 0.05, 0.55, 0.065, "triangle");
+      });
+    } else if (effectType === "quizOk") {
+      // 查经回答正确：清澈上行琶音 (G4 - B4 - D5 - G5)
+      [392.00, 493.88, 587.33, 783.99].forEach((freq, i) => {
+        playSynthNote(ctx, freq, now + i * 0.06, 0.35, 0.07, "triangle");
+      });
+    } else if (effectType === "quizBad") {
+      // 查经回答错误：温和低音下行 (D4 -> A3)
+      playSynthNote(ctx, 293.66, now, 0.22, 0.065, "sine");
+      playSynthNote(ctx, 220.00, now + 0.14, 0.35, 0.065, "sine");
+    } else if (effectType === "gift") {
+      // 圣灵恩赐发动：空灵泛音列 (F4 - A4 - C5 - F5 - A5)
+      [349.23, 440.00, 523.25, 698.46, 880.00].forEach((freq, i) => {
+        playSynthNote(ctx, freq, now + i * 0.045, 0.48, 0.055, "sine");
+      });
+    } else if (effectType === "victory") {
+      // 终局胜利禧年号角凯歌 (C4 -> G4 -> C5 -> E5 -> G5 辉煌延音)
+      const fanfare = [
+        { f: 261.63, t: 0, d: 0.25 },
+        { f: 392.00, t: 0.18, d: 0.25 },
+        { f: 523.25, t: 0.36, d: 0.30 },
+        { f: 659.25, t: 0.58, d: 0.85 },
+        { f: 783.99, t: 0.58, d: 0.90 }
+      ];
+      fanfare.forEach(n => {
+        playSynthNote(ctx, n.f, now + n.t, n.d, 0.08, "triangle");
+      });
+    }
+  } catch (e) {}
 }
 
 function getCharacterSVG(charId) {
@@ -1538,6 +1823,7 @@ async function runMorningChurchQuizPhase(player, churches) {
         });
 
         const isCorrect = (i === qObj.answerIndex);
+        playSoundEffect(isCorrect ? "quizOk" : "quizBad");
         if (isCorrect) humanPassCount++;
         else btn.classList.add("opt-wrong");
 
@@ -1643,6 +1929,7 @@ function executeRollDice(forcedStep = null) {
   const d2 = (forcedStep === null && gameState.doubleDiceActive) ? (Math.floor(Math.random() * 6) + 1) : 0;
   const totalSteps = d1 + d2;
 
+  playSoundEffect("dice");
   dice1El.classList.add("rolling");
   if (gameState.doubleDiceActive) {
     dice2El.classList.remove("hidden");
@@ -1678,12 +1965,14 @@ async function movePlayerStepByStep(player, remainingSteps) {
 
   const boardLen = gameState.board.length;
   player.position = (player.position + 1) % boardLen;
+  playSoundEffect("step");
 
   updateAllTokensPosition();
   focusCameraOnPlayer(player);
 
   // 途经或停留起点（耶路撒冷）：先出旁白 -> 消失后再出角色积极语音 -> 播完再走下一步
   if (player.position === 0) {
+    playSoundEffect("coin");
     player.wealth += 1000;
     let desc = `回到恩典之源【耶路撒冷】，领受宣教供给 +$1,000！`;
     if (player.charId === "paul") {
@@ -1797,6 +2086,7 @@ function openPentecostShopModal(player) {
           player.faith -= g.cost;
           player.gifts.push(g.id);
           boughtAny = true;
+          playSoundEffect("gift");
           addEventLog(`🔥 【${player.name}】消耗 ${g.cost} 信心领受了【${g.name}】！`);
           renderAllPlayersHUD();
           refreshShopUI();
@@ -2040,6 +2330,7 @@ function handleCityTile(player, tile) {
   }
 
   if (player.isAI) {
+    playSoundEffect("coin");
     player.wealth -= offering;
     hostPlayer.wealth += offering;
     const msg = `访问【${hostPlayer.name}】的【${tile.name}教会】，献上爱心奉献 $${offering.toLocaleString()}！`;
@@ -2065,6 +2356,7 @@ function handleCityTile(player, tile) {
     confirmText: `支付奉献 ($${offering.toLocaleString()})`,
     cancelText: null,
     onConfirm: () => {
+      playSoundEffect("coin");
       player.wealth -= offering;
       hostPlayer.wealth += offering;
       const msg = `向【${hostPlayer.name}】的【${tile.name}教会】奉献了 $${offering.toLocaleString()}！`;
@@ -2079,6 +2371,7 @@ function handleCityTile(player, tile) {
 }
 
 function buildChurchOnTile(player, tile) {
+  playSoundEffect("build");
   player.wealth -= tile.price;
   tile.owner = player.index;
   tile.level = 1;
@@ -2096,6 +2389,7 @@ function buildChurchOnTile(player, tile) {
 
 function upgradeChurchOnTile(tile, logIt = true) {
   if (tile.level >= 7) return;
+  playSoundEffect("build");
   tile.level += 1;
   const added = Math.round((tile.level / 10) * tile.price);
   tile.believers += added;
@@ -2300,6 +2594,7 @@ function activateSpiritualGift(player, giftId, giftSlotIdx) {
   if (gameState.phase !== "READY_ROLL" || gameState.usedGiftThisTurn) return;
 
   const consumeGift = () => {
+    playSoundEffect("gift");
     player.gifts.splice(giftSlotIdx, 1);
     gameState.usedGiftThisTurn = true;
     renderAllPlayersHUD();
@@ -2511,16 +2806,11 @@ async function finishPlayerTurnAction() {
 
   if (checkVictoryConditions()) return;
 
-  const p = gameState.players[gameState.currentPlayerIdx];
   renderAllPlayersHUD();
+  setPhaseText("回合完成，切换下一位...");
 
-  if (p.isAI || p.eliminated) {
-    setTimeout(() => advanceToNextPlayer(), 500);
-  } else {
-    setPhaseText("事工完成，请结束回合");
-    const endBtn = document.getElementById("btn-end-turn");
-    endBtn.classList.remove("hidden");
-  }
+  // 无论真人还是 AI，行动与弹窗全部结束后，直接自动推进到下一位玩家
+  setTimeout(() => advanceToNextPlayer(), 450);
 }
 
 function advanceToNextPlayer() {
@@ -2583,6 +2873,7 @@ function computePlayerScore(player) {
 
 function showGameOverModal(winner, reasonText) {
   gameState.phase = "GAMEOVER";
+  playSoundEffect("victory");
   const modal = document.getElementById("modal-gameover");
   modal.classList.remove("hidden");
 
@@ -2716,8 +3007,9 @@ function bindGlobalButtons() {
     voiceBtn.addEventListener("click", () => {
       gameState.voiceEnabled = !gameState.voiceEnabled;
       voiceBtn.textContent = gameState.voiceEnabled ? "🔊" : "🔇";
-      if (!gameState.voiceEnabled && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
+      if (!gameState.voiceEnabled) {
+        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+        if (activeAudioElement) { activeAudioElement.pause(); activeAudioElement = null; }
       }
     });
     viewControls.prepend(voiceBtn);
