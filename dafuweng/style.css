@@ -1402,3 +1402,178 @@ body, html {
   color: var(--parchment-mid);
   line-height: 1.55;
 }
+
+/* ==========================================================================
+   v2.3 新增：专属 SVG 角色立绘、立体棋子、串行旁白框与角色语音对话框
+   ========================================================================== */
+
+/* 1. 通用 SVG 立绘容器 */
+.avatar-circle svg,
+.player-token svg,
+.slot-avatar-preview svg,
+.rpg-portrait-frame svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.avatar-circle {
+  overflow: hidden;
+  padding: 0;
+}
+
+/* 大厅选人卡片左侧头像预览 */
+.slot-char-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.slot-avatar-preview {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 2px solid var(--gold-bright);
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #1f1710;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6);
+}
+
+/* 2. 棋盘上的专属半身像立体棋子 */
+.player-token {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  overflow: hidden;
+  padding: 0;
+  background: #1b140e;
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.85);
+}
+
+.player-token.active-token {
+  transform: scale(1.28) translateY(-4px);
+  box-shadow: 0 0 0 3px var(--gold-bright), 0 0 20px var(--gold-bright), 0 8px 16px rgba(0, 0, 0, 0.95);
+  z-index: 60;
+}
+
+/* 3. 样式 A：旁白通知框（Narrator Box，居中展示客观事件，不配音） */
+.event-toast-card.narrator-card {
+  background: linear-gradient(135deg, rgba(44, 33, 22, 0.97) 0%, rgba(24, 18, 12, 0.98) 100%);
+  border: 2px solid var(--gold-mid);
+  border-radius: 14px;
+  padding: 14px 22px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.85), 0 0 22px rgba(242, 201, 76, 0.25);
+}
+
+.narrator-tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #1e1508;
+  background: var(--gold-mid);
+  padding: 1px 7px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  letter-spacing: 1px;
+}
+
+/* 4. 样式 B：角色对话语音框（Character Speech Box，左头像 + 右台词） */
+.event-toast-card.character-speech-card {
+  padding: 14px 20px;
+  gap: 18px;
+  background: linear-gradient(135deg, rgba(36, 26, 17, 0.98) 0%, rgba(18, 13, 9, 0.99) 100%);
+  border-width: 2.5px;
+  border-style: solid;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.9);
+}
+
+.rpg-portrait-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 82px;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.rpg-portrait-frame {
+  position: relative;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 3px solid var(--gold-bright);
+  overflow: hidden;
+  background: #1a130d;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.85);
+}
+
+.rpg-mood-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  font-size: 0.92rem;
+  background: rgba(20, 15, 10, 0.92);
+  border-radius: 50%;
+  padding: 2px;
+}
+
+.rpg-speaker-tag {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rpg-dialogue-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.rpg-quote-header {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--parchment-dark);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rpg-quote-bubble {
+  font-family: var(--font-serif);
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: #fff8e7;
+  line-height: 1.5;
+  background: rgba(255, 255, 255, 0.07);
+  border-left: 4px solid var(--gold-bright);
+  padding: 9px 14px;
+  border-radius: 0 10px 10px 0;
+}
+
+.voice-wave-icon {
+  font-size: 0.85rem;
+  color: var(--gold-bright);
+  animation: voicePulse 0.6s infinite alternate;
+}
+
+@keyframes voicePulse {
+  from { opacity: 0.35; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1.12); }
+}

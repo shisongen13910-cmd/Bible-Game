@@ -1,13 +1,117 @@
 /**
- * 《天路同行：圣经大富翁》核心游戏逻辑 (game.js) - v2.1 升级版
+ * 《天路同行：圣经大富翁》核心游戏逻辑 (game.js) - v2.3 串行旁白与角色配音版
+ * 基准：严格保留 game_2.js 数值与规则（最多抽查3座教会、15000/30000目标等）
  * 新增特性：
- * 1. 镜头自动平滑跟随当前行动玩家 (focusCameraOnPlayer)
- * 2. 强化玩家代表色边框与所属堂会彩色顶栏旗帜
- * 3. 投掷骰子后严格禁用技能栏与HUD恩赐芯片点击
- * 4. 屏幕中央动态事件横幅弹窗 (showEventPopup) 实时播报关键事件
+ * 1. 8位圣经角色专属 SVG 半身像（替换大厅、四角HUD、棋盘棋子、对话框头像）
+ * 2. 严格区分【旁白通知框（不朗读）】与【角色对话语音框（左头像+右台词+真人语音朗读）】
+ * 3. 全局串行弹窗队列：前一个对话框完全消失后，下一个对话框才会出现；等所有对话框播完才推进下一步
  */
 
-// ==================== 一、静态配置数据 ====================
+// ==================== 一、角色专属 SVG 立绘 ====================
+
+const CHARACTER_SVGS = {
+  abraham: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="bg-ab" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#312e81"/><stop offset="100%" stop-color="#0f172a"/></radialGradient></defs>
+    <rect width="64" height="64" fill="url(#bg-ab)"/>
+    <circle cx="14" cy="14" r="1.5" fill="#fde047"/><circle cx="52" cy="12" r="2" fill="#fde047"/><circle cx="48" cy="24" r="1.2" fill="#fef08a"/>
+    <path d="M12 64 C12 44 52 44 52 64 Z" fill="#4338ca"/>
+    <path d="M16 30 C16 12 48 12 48 30 L50 48 L14 48 Z" fill="#1e1b4b"/>
+    <path d="M18 22 Q32 16 46 22" stroke="#f59e0b" stroke-width="3" fill="none"/>
+    <circle cx="32" cy="31" r="11" fill="#f3d2b3"/>
+    <path d="M21 33 Q32 42 43 33 Q45 52 32 56 Q19 52 21 33 Z" fill="#f8fafc"/>
+    <path d="M26 36 Q32 39 38 36" stroke="#cbd5e1" stroke-width="2" fill="none"/>
+    <circle cx="28" cy="28" r="1.6" fill="#1e293b"/><circle cx="36" cy="28" r="1.6" fill="#1e293b"/>
+    <path d="M25 25 Q28 23 30 25 M34 25 Q36 23 39 25" stroke="#f8fafc" stroke-width="1.8" fill="none"/>
+  </svg>`,
+
+  moses: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="bg-mo" cx="50%" cy="35%" r="60%"><stop offset="0%" stop-color="#78350f"/><stop offset="100%" stop-color="#271206"/></radialGradient></defs>
+    <rect width="64" height="64" fill="url(#bg-mo)"/>
+    <path d="M10 64 C12 45 52 45 54 64 Z" fill="#92400e"/>
+    <path d="M15 28 C15 11 49 11 49 28 L51 50 L13 50 Z" fill="#d6d3d1"/>
+    <circle cx="32" cy="31" r="11" fill="#e6bc98"/>
+    <path d="M20 34 Q32 40 44 34 Q44 54 32 58 Q20 54 20 34 Z" fill="#e7e5e4"/>
+    <circle cx="28" cy="28" r="1.6" fill="#1c1917"/><circle cx="36" cy="28" r="1.6" fill="#1c1917"/>
+    <path d="M52 14 C57 14 57 22 52 24 L52 62" stroke="#f59e0b" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M24 18 L28 13 M40 18 L36 13" stroke="#fef08a" stroke-width="2" stroke-linecap="round"/>
+  </svg>`,
+
+  david: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="bg-da" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#991b1b"/><stop offset="100%" stop-color="#310b0b"/></radialGradient></defs>
+    <rect width="64" height="64" fill="url(#bg-da)"/>
+    <path d="M12 64 C14 45 50 45 52 64 Z" fill="#dc2626"/>
+    <path d="M19 25 C19 14 45 14 45 25 L46 38 L18 38 Z" fill="#7c2d12"/>
+    <circle cx="32" cy="32" r="11" fill="#f5d0b5"/>
+    <polygon points="20,22 24,13 28,20 32,11 36,20 40,13 44,22" fill="#facc15" stroke="#ca8a04" stroke-width="1"/>
+    <circle cx="28" cy="30" r="1.7" fill="#1e293b"/><circle cx="36" cy="30" r="1.7" fill="#1e293b"/>
+    <path d="M28 36 Q32 40 36 36" stroke="#b45309" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M46 42 Q56 42 54 58 L46 58 Z" stroke="#facc15" stroke-width="2" fill="none"/>
+    <line x1="49" y1="44" x2="49" y2="57" stroke="#fef08a" stroke-width="1"/><line x1="52" y1="45" x2="52" y2="57" stroke="#fef08a" stroke-width="1"/>
+  </svg>`,
+
+  solomon: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="bg-so" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#6b21a8"/><stop offset="100%" stop-color="#2e1065"/></radialGradient></defs>
+    <rect width="64" height="64" fill="url(#bg-so)"/>
+    <path d="M10 64 C12 44 52 44 54 64 Z" fill="#7e22ce"/>
+    <path d="M22 46 L32 58 L42 46" fill="none" stroke="#facc15" stroke-width="3"/>
+    <circle cx="32" cy="32" r="11" fill="#ecc5a0"/>
+    <path d="M22 35 Q32 41 42 35 Q41 46 32 48 Q23 46 22 35 Z" fill="#1e1b4b"/>
+    <polygon points="18,22 22,10 32,15 42,10 46,22" fill="#fbbf24" stroke="#d97706" stroke-width="1.2"/>
+    <circle cx="32" cy="16" r="2.2" fill="#ef4444"/>
+    <circle cx="28" cy="29" r="1.6" fill="#1e293b"/><circle cx="36" cy="29" r="1.6" fill="#1e293b"/>
+  </svg>`,
+
+  peter: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="bg-pe" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#0369a1"/><stop offset="100%" stop-color="#0c4a6e"/></radialGradient></defs>
+    <rect width="64" height="64" fill="url(#bg-pe)"/>
+    <path d="M11 64 C13 44 51 44 53 64 Z" fill="#0284c7"/>
+    <circle cx="32" cy="31" r="11.5" fill="#eab68c"/>
+    <path d="M19 26 Q32 14 45 26" stroke="#64748b" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <path d="M20 33 Q32 39 44 33 Q44 48 32 50 Q20 48 20 33 Z" fill="#64748b"/>
+    <circle cx="28" cy="28" r="1.7" fill="#0f172a"/><circle cx="36" cy="28" r="1.7" fill="#0f172a"/>
+    <circle cx="51" cy="44" r="4" stroke="#facc15" stroke-width="2.2" fill="none"/>
+    <line x1="51" y1="48" x2="51" y2="59" stroke="#facc15" stroke-width="2.2"/>
+    <line x1="51" y1="55" x2="55" y2="55" stroke="#facc15" stroke-width="2.2"/>
+  </svg>`,
+
+  paul: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="bg-pa" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#9a3412"/><stop offset="100%" stop-color="#431407"/></radialGradient></defs>
+    <rect width="64" height="64" fill="url(#bg-pa)"/>
+    <path d="M11 64 C13 44 51 44 53 64 Z" fill="#b45309"/>
+    <circle cx="32" cy="30" r="11" fill="#edd1b0"/>
+    <path d="M21 25 C21 17 43 17 43 25" stroke="#451a03" stroke-width="3.5" fill="none"/>
+    <path d="M21 33 Q32 38 43 33 Q41 49 32 52 Q23 49 21 33 Z" fill="#451a03"/>
+    <circle cx="28" cy="28" r="1.7" fill="#1c1917"/><circle cx="36" cy="28" r="1.7" fill="#1c1917"/>
+    <rect x="45" y="43" width="11" height="15" rx="2" fill="#fef3c7" stroke="#d97706" stroke-width="1.2"/>
+    <line x1="47" y1="47" x2="54" y2="47" stroke="#92400e" stroke-width="1.2"/>
+    <line x1="47" y1="51" x2="54" y2="51" stroke="#92400e" stroke-width="1.2"/>
+  </svg>`,
+
+  barnabas: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="bg-ba" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#15803d"/><stop offset="100%" stop-color="#052e16"/></radialGradient></defs>
+    <rect width="64" height="64" fill="url(#bg-ba)"/>
+    <path d="M11 64 C13 44 51 44 53 64 Z" fill="#16a34a"/>
+    <circle cx="32" cy="31" r="11" fill="#f3d2b3"/>
+    <path d="M20 26 Q32 15 44 26" stroke="#57534e" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <path d="M19 22 Q32 18 45 22" stroke="#86efac" stroke-width="2" fill="none"/>
+    <path d="M22 34 Q32 40 42 34 Q40 46 32 48 Q24 46 22 34 Z" fill="#57534e"/>
+    <circle cx="28" cy="28" r="1.6" fill="#1c1917"/><circle cx="36" cy="28" r="1.6" fill="#1c1917"/>
+    <path d="M28 35 Q32 38 36 35" stroke="#fef08a" stroke-width="1.6" fill="none"/>
+  </svg>`,
+
+  luke: `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="bg-lu" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#0f766e"/><stop offset="100%" stop-color="#042f2e"/></radialGradient></defs>
+    <rect width="64" height="64" fill="url(#bg-lu)"/>
+    <path d="M12 64 C14 44 50 44 52 64 Z" fill="#0d9488"/>
+    <circle cx="32" cy="31" r="11" fill="#f5d5b8"/>
+    <path d="M20 25 Q32 14 44 25" stroke="#334155" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <path d="M24 35 Q32 39 40 35 Q38 43 32 45 Q26 43 24 35 Z" fill="#334155"/>
+    <circle cx="28" cy="28" r="1.7" fill="#0f172a"/><circle cx="36" cy="28" r="1.7" fill="#0f172a"/>
+    <path d="M49 40 L55 56 M55 40 L47 46" stroke="#fef08a" stroke-width="2" stroke-linecap="round"/>
+  </svg>`
+};
+
+// ==================== 二、静态配置数据（包含角色声线与积极/消极台词） ====================
 
 const CHURCH_RANK_NAMES = [
   "无",
@@ -30,7 +134,20 @@ const CHARACTERS = [
     avatar: "亚",
     title: "信心之父（旧约）",
     skillName: "【多国之父】",
-    skillDesc: "初始信心额外 +20（开局70信心）；每次在安息日格休整时，当回合与停留回合各额外 +5 信心（共得20信心）。"
+    skillDesc: "初始信心额外 +20（开局70信心）；每次在安息日格休整时，当回合与停留回合各额外 +5 信心（共得20信心）。",
+    voice: { pitch: 0.78, rate: 0.92 },
+    quotes: {
+      positive: [
+        "仰望天上的众星，耶和华必预备一切！",
+        "凭着信心踏上应许之地，神的赐福何其广大！",
+        "筑起祭坛求告主名，万族必因这信蒙福！"
+      ],
+      negative: [
+        "这迦南地的饥荒甚大，求主坚固仆人的脚步……",
+        "虽然眼下遭遇亏损，但我深信神的应许永不落空。",
+        "漫漫旷野路途不易，仍当专心仰望那召我的主。"
+      ]
+    }
   },
   {
     id: "moses",
@@ -38,7 +155,20 @@ const CHARACTERS = [
     avatar: "摩",
     title: "律法与领路人（旧约）",
     skillName: "【旷野引导】",
-    skillDesc: "停留在试炼格时，试炼要求的信心门槛永久降低 15 点；且通过试炼获得的财富与信心奖励提升 50%。"
+    skillDesc: "停留在试炼格时，试炼要求的信心门槛永久降低 15 点；且通过试炼获得的财富与信心奖励提升 50%。",
+    voice: { pitch: 0.82, rate: 0.95 },
+    quotes: {
+      positive: [
+        "不要惧怕，只管站住，看耶和华今日向我们所要施行的救恩！",
+        "云柱火柱在前引导，旷野的磐石也必流出活水！",
+        "耶和华是我的力量，是我的诗歌，他也成了我的拯救！"
+      ],
+      negative: [
+        "这百姓的担子何其沉重，求主赐下恩典与忍耐……",
+        "旷野的路途甚是艰难，但求主的同在不离开我们。",
+        "求你指教我们怎样数算自己的日子，好得着智慧的心。"
+      ]
+    }
   },
   {
     id: "david",
@@ -46,7 +176,20 @@ const CHARACTERS = [
     avatar: "卫",
     title: "合神心意的王（旧约）",
     skillName: "【赞美诗篇】",
-    skillDesc: "回合开始的教会查经问答中，每答对 1 道题，除教会信徒 +10% 外，自身额外恢复 +3 信心与 +$300 财富。"
+    skillDesc: "回合开始的教会查经问答中，每答对 1 道题，除教会信徒 +10% 外，自身额外恢复 +3 信心与 +$300 财富。",
+    voice: { pitch: 1.12, rate: 1.04 },
+    quotes: {
+      positive: [
+        "哈利路亚！我的心哪，你要弹琴称颂耶和华的圣名！",
+        "耶和华是我的牧者，我必不致缺乏，福杯满溢！",
+        "靠着万军之耶和华的名，我们必在佳美之处得着产业！"
+      ],
+      negative: [
+        "我的心哪，你为何忧闷？应当仰望神，我还要称赞他！",
+        "虽然行过死荫的幽谷，我也不怕遭害，因为你与我同在。",
+        "神啊，求你为我造清洁的心，使我里面重新有正直的灵！"
+      ]
+    }
   },
   {
     id: "solomon",
@@ -54,7 +197,20 @@ const CHARACTERS = [
     avatar: "所",
     title: "智慧与圣殿之王（旧约）",
     skillName: "【圣殿建造者】",
-    skillDesc: "初始财富额外 +$3,000（开局$13,000）；将教会扩建至 5~7 级时，扩建费用享受 8 折优惠。"
+    skillDesc: "初始财富额外 +$3,000（开局$13,000）；将教会扩建至 5~7 级时，扩建费用享受 8 折优惠。",
+    voice: { pitch: 0.95, rate: 0.98 },
+    quotes: {
+      positive: [
+        "敬畏耶和华是智慧的开端，愿这宏伟圣殿充满主的荣光！",
+        "若不是耶和华建造房屋，建造的人就枉然劳力！",
+        "智慧与富足皆从主而来，当以甘心乐意的心建造圣所！"
+      ],
+      negative: [
+        "虚空的虚空……世上的钱财果然如飞鸟展翅飞去。",
+        "凡事都有定期，今日虽有亏损，他日必再得饱足。",
+        "人的筹算在乎心，惟有耶和华指引人脚下的道路。"
+      ]
+    }
   },
   {
     id: "peter",
@@ -62,7 +218,20 @@ const CHARACTERS = [
     avatar: "彼",
     title: "教会磐石（新约）",
     skillName: "【磐石牧养】",
-    skillDesc: "建立 1 级教会时初始信徒数翻倍（2/10地价）；且名下教会问答答错时，信徒仅减少 25%（常规减少50%）。"
+    skillDesc: "建立 1 级教会时初始信徒数翻倍（2/10地价）；且名下教会问答答错时，信徒仅减少 25%（常规减少50%）。",
+    voice: { pitch: 0.88, rate: 1.02 },
+    quotes: {
+      positive: [
+        "你是基督，是永生神的儿子！在这磐石上教会必稳固建立！",
+        "主啊，你有永生之道，我们还归从谁呢？必竭力牧养群羊！",
+        "金银我虽有限，但奉拿撒勒人耶稣的名，圣工必大得复兴！"
+      ],
+      negative: [
+        "主啊，救我！我不该只看眼前的风浪而小信软弱……",
+        "务要谨守警醒，在患难试炼中更当坚固弟兄们的心！",
+        "暂时的受挫算不得什么，信心经过试验比金子更显宝贵！"
+      ]
+    }
   },
   {
     id: "paul",
@@ -70,7 +239,20 @@ const CHARACTERS = [
     avatar: "保",
     title: "外邦人的使徒（新约）",
     skillName: "【宣教热忱】",
-    skillDesc: "每次路过或停留起点【耶路撒冷】时，除获得 $1,000 外，名下所有已建教会的信徒立即额外增加 5%。"
+    skillDesc: "每次路过或停留起点【耶路撒冷】时，除获得 $1,000 外，名下所有已建教会的信徒立即额外增加 5%。",
+    voice: { pitch: 0.96, rate: 1.05 },
+    quotes: {
+      positive: [
+        "忘记背后，努力面前的，向着标竿直跑，把福音传到地极！",
+        "我靠着那加给我力量的，凡事都能做！众教会大得造就！",
+        "这福音本是神的大能，感谢主为我们开了传道的宽大之门！"
+      ],
+      negative: [
+        "我素常知道怎样处丰富，也知道怎样处卑贱，主恩够我用的！",
+        "我们四面受敌，却不被困住；打倒了，却不至死亡！",
+        "为福音的缘故受些亏损算不得什么，万事都互相效力！"
+      ]
+    }
   },
   {
     id: "barnabas",
@@ -78,7 +260,20 @@ const CHARACTERS = [
     avatar: "巴",
     title: "劝慰子（新约）",
     skillName: "【甘心劝慰】",
-    skillDesc: "访问他人教会支付奉献款时减免 25%；当其他玩家访问巴拿巴的教会奉献时，巴拿巴额外获得 +5 信心。"
+    skillDesc: "访问他人教会支付奉献款时减免 25%；当其他玩家访问巴拿巴的教会奉献时，巴拿巴额外获得 +5 信心。",
+    voice: { pitch: 1.04, rate: 0.98 },
+    quotes: {
+      positive: [
+        "看哪，弟兄和睦同居是何等的善，何等的美！",
+        "施比受更为有福，愿主的恩惠与劝慰常与众教会同在！",
+        "看见神所赐的恩典，我心里欢喜，愿大家都恒久靠主！"
+      ],
+      negative: [
+        "甘心乐意地支持同工的事工，天父必在暗中察看并报答！",
+        "弟兄们不要灰心，我们在善事上若不丧志，到了时候必有收成。",
+        "彼此担当重担，就能成全基督的律法，愿平安归与你们！"
+      ]
+    }
   },
   {
     id: "luke",
@@ -86,71 +281,34 @@ const CHARACTERS = [
     avatar: "路",
     title: "博学医者与史家（新约）",
     skillName: "【详尽考究】",
-    skillDesc: "教会查经问答时，系统自动排除 1 个错误选项（四选一变三选一）；且答错时自身不扣信心。"
+    skillDesc: "教会查经问答时，系统自动排除 1 个错误选项（四选一变三选一）；且答错时自身不扣信心。",
+    voice: { pitch: 1.08, rate: 1.02 },
+    quotes: {
+      positive: [
+        "从起头都详细考察了，按着次序记载，使人知晓所学之道都是确实的！",
+        "天天考查圣经，要晓得这道是与不是，真理必使会众得自由！",
+        "主的道日见兴旺，越发广传，门徒的数目在各城大大加增！"
+      ],
+      negative: [
+        "经上的教训博大精深，看来我还需要更加详尽地考究一番……",
+        "行医与宣教皆需耐心，暂时的耗损阻挡不了福音的脚步。",
+        "不要惊慌，把这一切事存在心里反复思想，主必亲自引领。"
+      ]
+    }
   }
 ];
 
 const SPIRITUAL_GIFTS = [
-  {
-    id: "pillar_cloud",
-    name: "云柱火柱",
-    cost: 15,
-    desc: "神圣引导：本回合不投随机骰子，直接指定前进 1 ~ 6 步。"
-  },
-  {
-    id: "eagle_wings",
-    name: "如鹰展翅",
-    cost: 10,
-    desc: "奔跑不困倦：本回合投掷 2 颗骰子（前进 2~12 步）。"
-  },
-  {
-    id: "philip_teleport",
-    name: "腓利被提",
-    cost: 20,
-    desc: "圣灵提走：本回合不投骰子，直接传送至名下任意一座教会并触发扩建判定。"
-  },
-  {
-    id: "nehemiah_wall",
-    name: "尼希米筑墙",
-    cost: 20,
-    desc: "修造城墙：立即指定名下任意一座未满级教会，免费扩建 1 级。"
-  },
-  {
-    id: "cleanse_temple",
-    name: "洁净圣殿",
-    cost: 25,
-    desc: "斥责世俗：指定任意对手的一座教会强制降低 1 级（1级则信徒减半）。"
-  },
-  {
-    id: "cana_wedding",
-    name: "迦拿婚宴",
-    cost: 15,
-    desc: "水变美酒：立即获得「当前剩余信心 × $40」的财富补助（保底 $1,200）。"
-  },
-  {
-    id: "five_loaves",
-    name: "五饼二鱼",
-    cost: 25,
-    desc: "倍增神迹：指定名下任意一座教会，其当前信徒人数立即增加 30%。"
-  },
-  {
-    id: "armor_of_god",
-    name: "属灵全副军装",
-    cost: 15,
-    desc: "信德藤牌：获得1层护盾，下一次免除他人教会奉献款，或免除试炼失败惩罚。"
-  },
-  {
-    id: "gift_tongues",
-    name: "舌音方言",
-    cost: 10,
-    desc: "圣灵口才：下回合开始时的教会查经问答无需做题，全部直接判定为答对（+10%）。"
-  },
-  {
-    id: "jubilee_horn",
-    name: "约禧年号角",
-    cost: 30,
-    desc: "产业归回：立即从当前场上财富最多的一名对手处转移 15% 现金归入自己名下。"
-  }
+  { id: "pillar_cloud", name: "云柱火柱", cost: 15, desc: "神圣引导：本回合不投随机骰子，直接指定前进 1 ~ 6 步。" },
+  { id: "eagle_wings", name: "如鹰展翅", cost: 10, desc: "奔跑不困倦：本回合投掷 2 颗骰子（前进 2~12 步）。" },
+  { id: "philip_teleport", name: "腓利被提", cost: 20, desc: "圣灵提走：本回合不投骰子，直接传送至名下任意一座教会并触发扩建判定。" },
+  { id: "nehemiah_wall", name: "尼希米筑墙", cost: 20, desc: "修造城墙：立即指定名下任意一座未满级教会，免费扩建 1 级。" },
+  { id: "cleanse_temple", name: "洁净圣殿", cost: 25, desc: "斥责世俗：指定任意对手的一座教会强制降低 1 级（1级则信徒减半）。" },
+  { id: "cana_wedding", name: "迦拿婚宴", cost: 15, desc: "水变美酒：立即获得「当前剩余信心 × $40」的财富补助（保底 $1,200）。" },
+  { id: "five_loaves", name: "五饼二鱼", cost: 25, desc: "倍增神迹：指定名下任意一座教会，其当前信徒人数立即增加 30%。" },
+  { id: "armor_of_god", name: "属灵全副军装", cost: 15, desc: "信德藤牌：获得1层护盾，下一次免除他人教会奉献款，或免除试炼失败惩罚。" },
+  { id: "gift_tongues", name: "舌音方言", cost: 10, desc: "圣灵口才：下回合开始时的教会查经问答无需做题，全部直接判定为答对（+10%）。" },
+  { id: "jubilee_horn", name: "约禧年号角", cost: 30, desc: "产业归回：立即从当前场上财富最多的一名对手处转移 15% 现金归入自己名下。" }
 ];
 
 const TRIAL_EVENTS = [
@@ -381,10 +539,11 @@ const FALLBACK_QUESTIONS = [
   { id: 27, question: "摩西举杖，神使大东风吹了一夜，分开了哪片水域让以色列人走干地？", options: ["加利利海", "约旦河", "死海", "红海"], answerIndex: 3, reference: "出埃及记 14:21" }
 ];
 
-// ==================== 二、全局状态对象 ====================
+// ==================== 三、全局状态与串行弹窗队列 ====================
 
 let allQuestions = [];
 let activeQuestionPool = [];
+let audioCtx = null;
 
 const gameState = {
   lobby: {
@@ -402,13 +561,14 @@ const gameState = {
   round: 1,
   maxRounds: 40,
   currentPlayerIdx: 0,
-  phase: "IDLE", // IDLE, QUIZ, READY_ROLL, MOVING, TILE_EVENT, GAMEOVER
+  phase: "IDLE",
   players: [],
   board: [],
   boardPixelWidth: 1400,
   boardPixelHeight: 1060,
   usedGiftThisTurn: false,
   doubleDiceActive: false,
+  voiceEnabled: true,
   camera: {
     x: 0,
     y: 0,
@@ -419,7 +579,218 @@ const gameState = {
   }
 };
 
-// ==================== 三、初始化与屏幕中央弹窗挂载 ====================
+// 串行对话框队列系统（严格保证前一个消失后才出现下一个）
+const popupQueue = [];
+let isPopupPlaying = false;
+let queueEmptyResolvers = [];
+
+function enqueueNarrator(icon, title, desc, borderColor = "#f2c94c", duration = 1850) {
+  popupQueue.push({
+    kind: "narrator",
+    icon,
+    title,
+    desc,
+    borderColor,
+    duration
+  });
+  processPopupQueue();
+}
+
+function enqueueCharSpeech(player, mood = "positive", contextLabel = "", customQuote = null) {
+  if (!player) return;
+  const charObj = CHARACTERS.find(c => c.id === player.charId) || CHARACTERS[0];
+  const pool = mood === "negative" ? charObj.quotes.negative : charObj.quotes.positive;
+  const quoteText = customQuote || pool[Math.floor(Math.random() * pool.length)];
+
+  popupQueue.push({
+    kind: "speech",
+    player,
+    charObj,
+    mood,
+    contextLabel,
+    quoteText
+  });
+  processPopupQueue();
+}
+
+function waitForDialogQueue() {
+  if (!isPopupPlaying && popupQueue.length === 0) {
+    return Promise.resolve();
+  }
+  return new Promise(resolve => {
+    queueEmptyResolvers.push(resolve);
+  });
+}
+
+function processPopupQueue() {
+  if (isPopupPlaying) return;
+  if (popupQueue.length === 0) {
+    const resolvers = [...queueEmptyResolvers];
+    queueEmptyResolvers = [];
+    resolvers.forEach(r => r());
+    return;
+  }
+
+  isPopupPlaying = true;
+  const item = popupQueue.shift();
+  ensureCenterToastContainer();
+  const container = document.getElementById("center-toast-container");
+  container.innerHTML = ""; // 严格只显示当前这一个弹窗
+
+  const card = document.createElement("div");
+
+  if (item.kind === "narrator") {
+    // 旁白框：不朗读，仅伴随轻柔提示音
+    playChimeSound("narrator");
+    card.className = "event-toast-card narrator-card";
+    card.style.borderColor = item.borderColor;
+    card.innerHTML = `
+      <div class="toast-icon-badge">${item.icon}</div>
+      <div class="toast-content-wrap">
+        <span class="narrator-tag">📜 圣工旁白</span>
+        <div class="toast-title" style="color:${item.borderColor};">${item.title}</div>
+        <div class="toast-desc">${item.desc}</div>
+      </div>
+    `;
+    container.appendChild(card);
+
+    setTimeout(() => {
+      card.classList.add("toast-fade-out");
+      setTimeout(() => {
+        if (card.parentNode === container) container.removeChild(card);
+        isPopupPlaying = false;
+        processPopupQueue();
+      }, 260);
+    }, item.duration);
+  } else if (item.kind === "speech") {
+    // 角色对话语音框：左头像 + 右台词 + 真人语音朗读
+    const { player, charObj, mood, contextLabel, quoteText } = item;
+    const isPos = mood !== "negative";
+    playChimeSound(isPos ? "positive" : "negative");
+
+    card.className = "event-toast-card character-speech-card";
+    card.style.borderColor = player.color;
+    card.innerHTML = `
+      <div class="rpg-portrait-col">
+        <div class="rpg-portrait-frame" style="border-color:${player.color};">
+          ${getCharacterSVG(player.charId)}
+          <span class="rpg-mood-badge">${isPos ? "🌟" : "💧"}</span>
+        </div>
+        <span class="rpg-speaker-tag" style="background:${player.color};">${player.name}</span>
+      </div>
+      <div class="rpg-dialogue-col">
+        <div class="rpg-quote-header">
+          <span>👑 ${charObj.name} ${contextLabel ? `· ${contextLabel}` : ""}</span>
+          <span class="voice-wave-icon">${gameState.voiceEnabled ? "🔊 配音中" : "💬 台词"}</span>
+        </div>
+        <div class="rpg-quote-bubble" style="border-left-color:${player.color};">
+          “${quoteText}”
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+
+    speakQuoteWithDuration(quoteText, charObj.voice).then(() => {
+      card.classList.add("toast-fade-out");
+      setTimeout(() => {
+        if (card.parentNode === container) container.removeChild(card);
+        isPopupPlaying = false;
+        processPopupQueue();
+      }, 260);
+    });
+  }
+}
+
+// Web Speech API 朗读并在读完后 resolve（若关闭语音或不支持则按字数定时停留）
+function speakQuoteWithDuration(text, voiceCfg = { pitch: 1, rate: 1 }) {
+  const fallbackMs = Math.max(2200, text.length * 145);
+
+  if (!gameState.voiceEnabled || !("speechSynthesis" in window)) {
+    return new Promise(res => setTimeout(res, fallbackMs));
+  }
+
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      setTimeout(resolve, 420); // 读完后留 0.42 秒余韵再消失
+    };
+
+    try {
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = "zh-CN";
+      utter.pitch = voiceCfg.pitch || 1.0;
+      utter.rate = voiceCfg.rate || 1.0;
+
+      const voices = window.speechSynthesis.getVoices();
+      const zhVoice = voices.find(v => v.lang && v.lang.includes("zh"));
+      if (zhVoice) utter.voice = zhVoice;
+
+      utter.onend = finish;
+      utter.onerror = finish;
+      window.speechSynthesis.speak(utter);
+
+      // 安全超时保护（防止部分浏览器 speechSynthesis 挂起不触发 onend）
+      setTimeout(finish, Math.max(3600, text.length * 230));
+    } catch (e) {
+      setTimeout(finish, fallbackMs);
+    }
+  });
+}
+
+// Web Audio API 轻柔提示音（旁白轻响 / 积极竖琴音 / 消极低沉音）
+function playChimeSound(type) {
+  if (!gameState.voiceEnabled) return;
+  try {
+    if (!audioCtx) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) audioCtx = new AudioContextClass();
+    }
+    if (!audioCtx) return;
+    if (audioCtx.state === "suspended") audioCtx.resume();
+
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    if (type === "narrator") {
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(523.25, now); // C5
+      gain.gain.setValueAtTime(0.06, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc.start(now);
+      osc.stop(now + 0.22);
+    } else if (type === "positive") {
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(587.33, now); // D5
+      osc.frequency.setValueAtTime(880.0, now + 0.11); // A5
+      gain.gain.setValueAtTime(0.09, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+      osc.start(now);
+      osc.stop(now + 0.38);
+    } else {
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(329.63, now); // E4
+      osc.frequency.setValueAtTime(261.63, now + 0.14); // C4
+      gain.gain.setValueAtTime(0.09, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+      osc.start(now);
+      osc.stop(now + 0.42);
+    }
+  } catch (e) {
+    // 忽略音频上下文限制报错
+  }
+}
+
+function getCharacterSVG(charId) {
+  return CHARACTER_SVGS[charId] || CHARACTER_SVGS.abraham;
+}
+
+// ==================== 四、初始化与大厅交互 ====================
 
 document.addEventListener("DOMContentLoaded", () => {
   ensureCenterToastContainer();
@@ -429,13 +800,6 @@ document.addEventListener("DOMContentLoaded", () => {
   bindGlobalButtons();
 });
 
-// 昵称保留原始文本，只在拼入 HTML 时转义，避免标签或属性被浏览器解析。
-function escapeHtml(value) {
-  const entities = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-  return String(value).replace(/[&<>"']/g, char => entities[char]);
-}
-
-// 动态创建屏幕正中央事件横幅容器
 function ensureCenterToastContainer() {
   if (!document.getElementById("center-toast-container")) {
     const container = document.createElement("div");
@@ -443,51 +807,6 @@ function ensureCenterToastContainer() {
     container.className = "center-toast-container";
     document.body.appendChild(container);
   }
-}
-
-/**
- * 在屏幕中央弹出清晰醒目的事件通知横幅
- * @param {string} icon 图标
- * @param {string} title 标题
- * @param {string} desc 详情描述
- * @param {string} borderColor 边框颜色（默认金色或玩家代表色）
- * @param {number} duration 停留毫秒数
- */
-function showEventPopup(icon, title, desc, borderColor = "#f2c94c", duration = 2200) {
-  ensureCenterToastContainer();
-  const container = document.getElementById("center-toast-container");
-
-  const card = document.createElement("div");
-  card.className = "event-toast-card";
-  card.style.borderColor = borderColor;
-  card.innerHTML = `
-    <div class="toast-icon-badge"></div>
-    <div class="toast-content-wrap">
-      <div class="toast-title"></div>
-      <div class="toast-desc"></div>
-    </div>
-  `;
-  card.querySelector(".toast-icon-badge").textContent = icon;
-  const titleEl = card.querySelector(".toast-title");
-  titleEl.style.color = borderColor;
-  titleEl.textContent = title;
-  card.querySelector(".toast-desc").textContent = desc;
-
-  container.appendChild(card);
-
-  // 限制同时最多展示 3 条，避免刷屏遮挡
-  while (container.children.length > 3) {
-    container.removeChild(container.firstChild);
-  }
-
-  setTimeout(() => {
-    card.classList.add("toast-fade-out");
-    setTimeout(() => {
-      if (card.parentNode === container) {
-        container.removeChild(card);
-      }
-    }, 260);
-  }, duration);
 }
 
 async function loadQuestionsJSON() {
@@ -567,25 +886,29 @@ function renderLobbyPlayerSlots() {
     card.innerHTML = `
       <div class="slot-header">
         <span class="slot-badge p${i + 1}-bg">P${i + 1}·${PLAYER_COLOR_NAMES[i]}</span>
-        <input type="text" class="player-name-input" value="" data-idx="${i}" />
+        <input type="text" class="player-name-input" value="${slotData.name}" data-idx="${i}" />
         <select class="player-type-select" data-idx="${i}">
           <option value="human" ${slotData.type === "human" ? "selected" : ""}>真人</option>
           <option value="ai" ${slotData.type === "ai" ? "selected" : ""}>电脑AI</option>
         </select>
       </div>
-      <select class="char-select" data-idx="${i}">
-        ${CHARACTERS.map(c => `
-          <option value="${c.id}" ${c.id === slotData.charId ? "selected" : ""}>
-            ${c.name} — ${c.title}
-          </option>
-        `).join("")}
-      </select>
+      <div class="slot-char-row">
+        <div class="slot-avatar-preview" id="slot-avatar-preview-${i}" style="border-color:${PLAYER_COLORS[i]};">
+          ${getCharacterSVG(charObj.id)}
+        </div>
+        <select class="char-select" data-idx="${i}" style="flex:1;">
+          ${CHARACTERS.map(c => `
+            <option value="${c.id}" ${c.id === slotData.charId ? "selected" : ""}>
+              ${c.name} — ${c.title}
+            </option>
+          `).join("")}
+        </select>
+      </div>
       <div class="char-skill-preview" id="slot-skill-preview-${i}">
         <div class="skill-title">✨ ${charObj.skillName}</div>
         <div class="skill-desc">${charObj.skillDesc}</div>
       </div>
     `;
-    card.querySelector(".player-name-input").value = slotData.name;
     container.appendChild(card);
   }
 
@@ -610,17 +933,21 @@ function renderLobbyPlayerSlots() {
       gameState.lobby.slots[idx].charId = newCharId;
       const charObj = CHARACTERS.find(c => c.id === newCharId);
       const previewEl = document.getElementById(`slot-skill-preview-${idx}`);
+      const avatarEl = document.getElementById(`slot-avatar-preview-${idx}`);
       if (charObj && previewEl) {
         previewEl.innerHTML = `
           <div class="skill-title">✨ ${charObj.skillName}</div>
           <div class="skill-desc">${charObj.skillDesc}</div>
         `;
       }
+      if (charObj && avatarEl) {
+        avatarEl.innerHTML = getCharacterSVG(charObj.id);
+      }
     });
   });
 }
 
-// ==================== 四、开始新对局与棋盘构建 ====================
+// ==================== 五、开始新对局与棋盘构建 ====================
 
 function startNewGame() {
   if (gameState.lobby.quizDiff === "children") {
@@ -673,6 +1000,8 @@ function startNewGame() {
 
   gameState.round = 1;
   gameState.currentPlayerIdx = 0;
+  popupQueue.length = 0;
+  isPopupPlaying = false;
 
   document.getElementById("lobby-screen").classList.remove("active");
   document.getElementById("lobby-screen").classList.add("hidden");
@@ -735,14 +1064,16 @@ function renderBoardDOM() {
     updateSingleTileDOM(idx);
   });
 
+  // 渲染带角色专属 SVG 形象的棋子
   const tokensContainer = document.getElementById("tokens-container");
   tokensContainer.innerHTML = "";
   gameState.players.forEach(p => {
     const token = document.createElement("div");
     token.id = `player-token-${p.index}`;
     token.className = "player-token";
-    token.style.backgroundColor = p.color;
-    token.textContent = p.avatar;
+    token.style.borderColor = p.color;
+    token.title = `${p.name}（${p.charName}）`;
+    token.innerHTML = getCharacterSVG(p.charId);
     tokensContainer.appendChild(token);
   });
 
@@ -785,7 +1116,7 @@ function updateSingleTileDOM(tileIdx) {
   if (tile.owner !== null) {
     el.classList.add(`owner-${tile.owner}`);
     const ownerPlayer = gameState.players[tile.owner];
-    ownerRibbonHtml = `<div class="tile-owner-ribbon" style="background:${ownerPlayer.color};">🚩 ${escapeHtml(ownerPlayer.name)} (${ownerPlayer.charName})</div>`;
+    ownerRibbonHtml = `<div class="tile-owner-ribbon" style="background:${ownerPlayer.color};">🚩 ${ownerPlayer.name} (${ownerPlayer.charName})</div>`;
   }
 
   let icon = "🏛️";
@@ -848,10 +1179,10 @@ function updateSingleTileDOM(tileIdx) {
 
 function updateAllTokensPosition() {
   const offsets = [
-    { dx: 14, dy: 44 },
-    { dx: 74, dy: 44 },
-    { dx: 14, dy: 78 },
-    { dx: 74, dy: 78 }
+    { dx: 10, dy: 38 },
+    { dx: 70, dy: 38 },
+    { dx: 10, dy: 74 },
+    { dx: 70, dy: 74 }
   ];
 
   gameState.players.forEach(p => {
@@ -874,12 +1205,10 @@ function updateAllTokensPosition() {
   });
 }
 
-// ==================== 五、镜头跟随系统 (Camera Follow) ====================
+// ==================== 六、镜头跟随与四角 HUD 渲染 ====================
 
-/**
- * 将镜头平滑聚焦到指定玩家当前所在的地块
- */
 function focusCameraOnPlayer(player, customScale = null) {
+  if (gameState.camera.isDragging) return;
   if (!player || player.eliminated) return;
   const tile = gameState.board[player.position];
   if (!tile) return;
@@ -888,13 +1217,11 @@ function focusCameraOnPlayer(player, customScale = null) {
     gameState.camera.scale = customScale;
   }
 
-  // 计算地块中心相对于画布中心的偏移量
   const tileCenterX = tile.x + 63;
   const tileCenterY = tile.y + 63;
   const canvasCenterX = gameState.boardPixelWidth / 2;
   const canvasCenterY = gameState.boardPixelHeight / 2;
 
-  // 将该地块移动到屏幕正中心（乘以当前缩放比例并适度保留边界舒适感）
   const dx = (canvasCenterX - tileCenterX) * gameState.camera.scale * 0.72;
   const dy = (canvasCenterY - tileCenterY) * gameState.camera.scale * 0.72;
 
@@ -903,10 +1230,7 @@ function focusCameraOnPlayer(player, customScale = null) {
   applyCameraTransform();
 }
 
-// ==================== 六、HUD 渲染与技能禁用控制 ====================
-
 function renderAllPlayersHUD() {
-  // 判断当前阶段是否允许点击圣灵恩赐（仅在当前真人玩家 READY_ROLL 且本回合未用过恩赐时可选中）
   const activePlayer = gameState.players[gameState.currentPlayerIdx];
   const canUseGiftsNow = (
     gameState.phase === "READY_ROLL" &&
@@ -915,7 +1239,6 @@ function renderAllPlayersHUD() {
     !gameState.usedGiftThisTurn
   );
 
-  // 同步更新底部恩赐按钮状态
   const bottomGiftBtn = document.getElementById("btn-open-gifts");
   if (bottomGiftBtn) {
     bottomGiftBtn.disabled = !canUseGiftsNow;
@@ -956,11 +1279,13 @@ function renderAllPlayersHUD() {
 
     card.innerHTML = `
       <div class="hud-card-header">
-        <div class="avatar-circle p${i + 1}-border">${p.avatar}</div>
+        <div class="avatar-circle p${i + 1}-border" style="border-color:${p.color};">
+          ${getCharacterSVG(p.charId)}
+        </div>
         <div class="hud-title-wrap">
           <div class="hud-player-name">
             <span class="turn-color-dot" style="background:${p.color};"></span>
-            ${escapeHtml(p.name)} · ${p.charName}${p.isAI ? " (AI)" : ""}
+            ${p.name} · ${p.charName}${p.isAI ? " (AI)" : ""}
           </div>
           <div class="hud-char-skill" title="${p.skillDesc}">✨${p.skillName}</div>
         </div>
@@ -987,7 +1312,6 @@ function renderAllPlayersHUD() {
       <div class="hud-gifts-bar">${giftsHtml}</div>
     `;
 
-    // 若当前处于可释放恩赐阶段，允许直接点击 HUD 上的恩赐芯片发动
     if (isThisPlayerGiftClickable) {
       card.querySelectorAll(".gift-mini-chip").forEach(chip => {
         chip.addEventListener("click", () => {
@@ -1006,10 +1330,9 @@ function getCornerClass(idx) {
 
 function updateTopHudBar() {
   const p = gameState.players[gameState.currentPlayerIdx];
-  // 去掉“第X回合”、“当前行动：”等冗余前缀，只留核心信息
   document.getElementById("hud-round-num").textContent = `R${gameState.round}`;
   document.getElementById("hud-current-player").innerHTML =
-    `<span class="turn-color-dot" style="background:${p.color};"></span>${escapeHtml(p.name)}·${p.charName}`;
+    `<span class="turn-color-dot" style="background:${p.color};"></span>${p.name}·${p.charName}`;
 
   const mapCfg = MAPS_DATA[gameState.lobby.mapSize];
   const goalMap = {
@@ -1018,7 +1341,6 @@ function updateTopHudBar() {
     score: `🏆 目标：${gameState.maxRounds} 回合综合属灵影响力最高`
   };
 
-  // 将地图、目标、题库信息写入悬停浮窗内
   document.getElementById("hud-goal-summary").textContent = goalMap[gameState.lobby.winGoal];
   const popMap = document.getElementById("popover-map-name");
   if (popMap) popMap.textContent = `🗺️ 地图：${mapCfg.title}（${gameState.board.length}格）`;
@@ -1030,9 +1352,9 @@ function setPhaseText(text) {
   document.getElementById("hud-phase-text").textContent = text;
 }
 
-// ==================== 七、单回合标准流程控制 (Turn Loop) ====================
+// ==================== 七、单回合标准流程控制（严格等待串行队列完成后再推进） ====================
 
-function startPlayerTurn() {
+async function startPlayerTurn() {
   if (checkVictoryConditions()) return;
 
   const p = gameState.players[gameState.currentPlayerIdx];
@@ -1052,11 +1374,9 @@ function startPlayerTurn() {
   renderAllPlayersHUD();
   updateTopHudBar();
   updateAllTokensPosition();
-
-  // 镜头自动平滑聚焦到当前回合玩家
   focusCameraOnPlayer(p);
 
-  // 阶段一 (A)：检查是否处于安息日格停留休整状态
+  // 阶段一 (A)：安息日休整状态（先出旁白 -> 消失后再出角色感恩语音 -> 读完才切下一位）
   if (p.sabbathRestTurns > 0) {
     setPhaseText("安息日休整");
     const bonusFaith = p.charId === "abraham" ? 10 : 5;
@@ -1065,26 +1385,27 @@ function startPlayerTurn() {
 
     const msg = `在安息日专心仰望休整，灵里重新得力，信心 +${bonusFaith}！`;
     addEventLog(`🕯️ 【${p.name}】${msg}`);
-    showEventPopup("🕯️", `${p.name} · 安息日得力`, msg, p.color, 2000);
     renderAllPlayersHUD();
 
-    setTimeout(() => {
-      advanceToNextPlayer();
-    }, 1800);
+    enqueueNarrator("🕯️", `${p.name} · 安息日得力`, msg, p.color, 1800);
+    enqueueCharSpeech(p, "positive", "安息日祷告");
+    await waitForDialogQueue();
+
+    advanceToNextPlayer();
     return;
   }
 
-  // 阶段一 (B)：晨更牧养查经问答（每回合最多抽查 3 座教会）
+  // 阶段一 (B)：晨更牧养查经问答（最多抽查 3 座教会）
   const myChurches = getPlayerChurches(p.index);
   if (myChurches.length > 0) {
     setPhaseText("晨更牧养查经");
-    runMorningChurchQuizPhase(p, myChurches);
+    await runMorningChurchQuizPhase(p, myChurches);
   } else {
     enterReadyRollPhase();
   }
 }
 
-function runMorningChurchQuizPhase(player, churches) {
+async function runMorningChurchQuizPhase(player, churches) {
   const shuffled = [...churches].sort(() => Math.random() - 0.5);
   const selectedChurches = shuffled.slice(0, 3);
 
@@ -1101,42 +1422,59 @@ function runMorningChurchQuizPhase(player, churches) {
     });
     const msg = `因【舌音方言】恩赐庇护，本回合抽查的 ${selectedChurches.length} 座教会全部免答通过，信徒各 +10%！`;
     addEventLog(`🕊️ 【${player.name}】${msg}`);
-    showEventPopup("🕊️", `${player.name} · 舌音方言生效`, msg, player.color, 2200);
     renderAllPlayersHUD();
+
+    enqueueNarrator("🕊️", `${player.name} · 舌音方言生效`, msg, player.color, 1900);
+    enqueueCharSpeech(player, "positive", "圣灵充满");
+    await waitForDialogQueue();
+
     enterReadyRollPhase();
     return;
   }
 
-  // AI 玩家自动查经并弹窗汇报
+  // AI 玩家自动查经：先弹旁白告知几对几错 -> 消失后再出角色积极/消极语音 -> 读完才去投骰子
   if (player.isAI) {
     let passCount = 0;
     selectedChurches.forEach(t => {
-      const winRate = player.charId === "luke" ? 0.82 : 0.7;
+      const winRate = player.charId === "luke" ? 0.7 : 0.6;
       const isCorrect = Math.random() < winRate;
       if (isCorrect) passCount++;
-      applyQuizOutcomeToChurch(player, t, isCorrect, false);
+      applyQuizOutcomeToChurch(player, t, isCorrect);
     });
-    showEventPopup(
+    renderAllPlayersHUD();
+
+    const failCount = selectedChurches.length - passCount;
+    const isOverallGood = passCount >= failCount;
+
+    enqueueNarrator(
       "📖",
       `${player.name} · 晨更查经结算`,
-      `本回合抽查 ${selectedChurches.length} 座堂会：答对 ${passCount} 题，答错 ${selectedChurches.length - passCount} 题。`,
+      `本回合抽查 ${selectedChurches.length} 座堂会：答对 ${passCount} 题，答错 ${failCount} 题。`,
       player.color,
       2000
     );
-    renderAllPlayersHUD();
-    setTimeout(() => enterReadyRollPhase(), 1200);
+    enqueueCharSpeech(player, isOverallGood ? "positive" : "negative", "晨更牧养");
+    await waitForDialogQueue();
+
+    enterReadyRollPhase();
     return;
   }
 
   // 真人玩家：依次弹出最多 3 道题
   let currentQuizIdx = 0;
+  let humanPassCount = 0;
 
   function showNextQuizModal() {
     if (currentQuizIdx >= selectedChurches.length) {
       document.getElementById("modal-quiz").classList.add("hidden");
       renderAllPlayersHUD();
       if (checkVictoryConditions()) return;
-      enterReadyRollPhase();
+
+      const isGood = humanPassCount >= (selectedChurches.length - humanPassCount);
+      enqueueCharSpeech(player, isGood ? "positive" : "negative", "查经完毕");
+      waitForDialogQueue().then(() => {
+        enterReadyRollPhase();
+      });
       return;
     }
 
@@ -1146,14 +1484,12 @@ function runMorningChurchQuizPhase(player, churches) {
     const modal = document.getElementById("modal-quiz");
     modal.classList.remove("hidden");
 
-    // 1. 让问答弹窗边框直接变成当前答题玩家的代表色
     const quizCard = modal.querySelector(".modal-card");
     if (quizCard) {
       quizCard.style.borderColor = player.color;
       quizCard.style.boxShadow = `0 0 28px ${player.color}66, 0 24px 60px rgba(0, 0, 0, 0.85)`;
     }
 
-    // 2. 在顶部标签和标题里醒目加上【玩家名（角色名）】与代表色圆点
     const tagEl = document.getElementById("quiz-progress-tag");
     tagEl.style.backgroundColor = player.color;
     tagEl.style.color = "#fff";
@@ -1161,7 +1497,7 @@ function runMorningChurchQuizPhase(player, churches) {
     tagEl.textContent = `👤 答题者：${player.name}（${player.charName}） | 第 ${currentQuizIdx + 1} / ${selectedChurches.length} 座教会`;
 
     document.getElementById("quiz-church-title").innerHTML =
-      `<span style="color:${player.color};">【${escapeHtml(player.name)}】</span>正在牧养：⛪【${churchTile.name}教会】（${churchTile.level}级 ${CHURCH_RANK_NAMES[churchTile.level]}）`;
+      `<span style="color:${player.color};">【${player.name}】</span>正在牧养：⛪【${churchTile.name}教会】（${churchTile.level}级 ${CHURCH_RANK_NAMES[churchTile.level]}）`;
     document.getElementById("quiz-current-believers").textContent = churchTile.believers.toLocaleString();
     document.getElementById("quiz-question-text").textContent = qObj.question;
 
@@ -1202,9 +1538,10 @@ function runMorningChurchQuizPhase(player, churches) {
         });
 
         const isCorrect = (i === qObj.answerIndex);
-        if (!isCorrect) btn.classList.add("opt-wrong");
+        if (isCorrect) humanPassCount++;
+        else btn.classList.add("opt-wrong");
 
-        const resultLog = applyQuizOutcomeToChurch(player, churchTile, isCorrect, true);
+        const resultLog = applyQuizOutcomeToChurch(player, churchTile, isCorrect);
 
         feedbackArea.classList.remove("hidden");
         document.getElementById("quiz-result-title").textContent = isCorrect
@@ -1231,8 +1568,8 @@ function applyQuizOutcomeToChurch(player, churchTile, isCorrect) {
   let msg = "";
   if (isCorrect) {
     const oldVal = churchTile.believers;
-    churchTile.believers = Math.round(churchTile.believers * 1.1);
-    msg = `你在【${churchTile.name}教会】按正意分解真理的道，信徒增加 10%（${oldVal} → ${churchTile.believers}）！`;
+    churchTile.believers = Math.round(churchTile.believers * 1.2);
+    msg = `你在【${churchTile.name}教会】按正意分解真理的道，信徒增加 20%（${oldVal} → ${churchTile.believers}）！`;
     if (player.charId === "david") {
       player.faith += 3;
       player.wealth += 300;
@@ -1263,8 +1600,8 @@ function getRandomQuestion() {
   return activeQuestionPool[idx];
 }
 
-// 阶段二：祷告与恩赐 / 准备投掷骰子
-function enterReadyRollPhase() {
+// 阶段二：准备投掷骰子
+async function enterReadyRollPhase() {
   gameState.phase = "READY_ROLL";
   setPhaseText("准备投掷 / 可用恩赐");
 
@@ -1278,23 +1615,26 @@ function enterReadyRollPhase() {
   if (p.isAI) {
     rollBtn.disabled = true;
     giftBtn.disabled = true;
-    setTimeout(() => executeRollDice(), 900);
+    if (getPlayerChurches(p.index).length === 0) {
+      enqueueNarrator("🤖", `轮到 ${p.name} (${p.charName}) 行动`, `正在预备投掷骰子踏上天路...`, p.color, 1400);
+      await waitForDialogQueue();
+    }
+    executeRollDice();
   } else {
     rollBtn.disabled = false;
     giftBtn.disabled = gameState.usedGiftThisTurn || p.gifts.length === 0;
   }
 }
 
-// 阶段三：投掷骰子与移动（投掷后立即锁定技能栏）
+// 阶段三：投掷骰子与移动
 function executeRollDice(forcedStep = null) {
   if (gameState.phase !== "READY_ROLL") return;
   gameState.phase = "MOVING";
   setPhaseText("踏上天路移动中（技能已锁定）");
 
-  // 投掷骰子后立即禁用投掷按钮与技能栏
   document.getElementById("btn-roll-dice").disabled = true;
   document.getElementById("btn-open-gifts").disabled = true;
-  renderAllPlayersHUD(); // 刷新HUD，使所有恩赐芯片挂上 .disabled-gift 禁止点击
+  renderAllPlayersHUD();
 
   const dice1El = document.getElementById("dice-box-1");
   const dice2El = document.getElementById("dice-box-2");
@@ -1311,7 +1651,7 @@ function executeRollDice(forcedStep = null) {
 
   const diceFaces = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 
-  setTimeout(() => {
+  setTimeout(async () => {
     dice1El.classList.remove("rolling");
     dice1El.textContent = diceFaces[d1] || d1;
     if (gameState.doubleDiceActive) {
@@ -1321,14 +1661,17 @@ function executeRollDice(forcedStep = null) {
 
     const p = gameState.players[gameState.currentPlayerIdx];
     addEventLog(`🎲 【${p.name}】投出了 ${totalSteps} 点，开始前进。`);
-    showEventPopup("🎲", `${p.name} 投出 ${totalSteps} 点`, `沿天路顺时针前进 ${totalSteps} 步...`, p.color, 1400);
+    enqueueNarrator("🎲", `${p.name} 投出 ${totalSteps} 点`, `沿天路顺时针前进 ${totalSteps} 步...`, p.color, 1200);
+    await waitForDialogQueue();
+
     movePlayerStepByStep(p, totalSteps);
   }, 450);
 }
 
-function movePlayerStepByStep(player, remainingSteps) {
+async function movePlayerStepByStep(player, remainingSteps) {
   if (remainingSteps <= 0) {
     focusCameraOnPlayer(player);
+    await waitForDialogQueue();
     onPlayerLandedOnTile(player);
     return;
   }
@@ -1336,7 +1679,10 @@ function movePlayerStepByStep(player, remainingSteps) {
   const boardLen = gameState.board.length;
   player.position = (player.position + 1) % boardLen;
 
-  // 检查是否路过或正好到达起点 (格号0：耶路撒冷)
+  updateAllTokensPosition();
+  focusCameraOnPlayer(player);
+
+  // 途经或停留起点（耶路撒冷）：先出旁白 -> 消失后再出角色积极语音 -> 播完再走下一步
   if (player.position === 0) {
     player.wealth += 1000;
     let desc = `回到恩典之源【耶路撒冷】，领受宣教供给 +$1,000！`;
@@ -1348,25 +1694,25 @@ function movePlayerStepByStep(player, remainingSteps) {
       desc += ` 【保罗·宣教热忱】使名下所有教会信徒 +5%！`;
     }
     addEventLog(`🕍 【${player.name}】${desc}`);
-    showEventPopup("🕍", `途经耶路撒冷 · 恩典供给`, `【${player.name}】${desc}`, "#f2c94c", 2600);
     renderAllPlayersHUD();
-  }
 
-  updateAllTokensPosition();
-  focusCameraOnPlayer(player);
+    enqueueNarrator("🕍", `途经耶路撒冷 · 恩典供给`, `【${player.name}】${desc}`, "#f2c94c", 1800);
+    enqueueCharSpeech(player, "positive", "归回圣城");
+    await waitForDialogQueue();
+  }
 
   setTimeout(() => {
     movePlayerStepByStep(player, remainingSteps - 1);
-  }, 280);
+  }, 380);
 }
 
-// ==================== 八、阶段四：落点事件结算 ====================
+// ==================== 八、阶段四：落点事件结算（旁白 -> 角色语音严格串行） ====================
 
 function onPlayerLandedOnTile(player) {
   gameState.phase = "TILE_EVENT";
   const tile = gameState.board[player.position];
   setPhaseText(`落点事工：${tile.name}`);
-  renderAllPlayersHUD(); // 确保技能栏保持锁定
+  renderAllPlayersHUD();
 
   if (tile.type === "start") {
     finishPlayerTurnAction();
@@ -1388,8 +1734,10 @@ function handleSabbathTile(player) {
   player.sabbathRestTurns = 1;
   const desc = `踏入【安息日格】，当回合信心 +${gainFaith}，下回合将停留休整 1 回合再得 +${gainFaith} 信心！`;
   addEventLog(`🕯️ 【${player.name}】${desc}`);
-  showEventPopup("🕯️", `${player.name} · 进入安息日`, desc, "#38bdf8", 2500);
   renderAllPlayersHUD();
+
+  enqueueNarrator("🕯️", `${player.name} · 进入安息日`, desc, "#38bdf8", 1900);
+  enqueueCharSpeech(player, "positive", "安息日蒙福");
   finishPlayerTurnAction();
 }
 
@@ -1403,10 +1751,12 @@ function handlePentecostTile(player) {
       player.gifts.push(pick.id);
       const desc = `消耗 ${pick.cost} 信心，领受了圣灵恩赐【${pick.name}】！`;
       addEventLog(`🔥 【${player.name}】在五旬节格${desc}`);
-      showEventPopup("🔥", `${player.name} · 五旬节领受恩赐`, desc, "#fb923c", 2300);
       renderAllPlayersHUD();
+
+      enqueueNarrator("🔥", `${player.name} · 五旬节领受恩赐`, desc, "#fb923c", 1900);
+      enqueueCharSpeech(player, "positive", `领受【${pick.name}】`);
     } else {
-      showEventPopup("🔥", `${player.name} · 途经五旬节格`, `在马可楼祷告片刻，未兑换新恩赐。`, "#fb923c", 1800);
+      enqueueNarrator("🔥", `${player.name} · 途经五旬节格`, `在马可楼祷告片刻，未兑换新恩赐。`, "#fb923c", 1600);
     }
     finishPlayerTurnAction();
     return;
@@ -1418,6 +1768,7 @@ function handlePentecostTile(player) {
 function openPentecostShopModal(player) {
   const modal = document.getElementById("modal-pentecost");
   modal.classList.remove("hidden");
+  let boughtAny = false;
 
   function refreshShopUI() {
     document.getElementById("pentecost-faith-val").textContent = player.faith;
@@ -1445,8 +1796,8 @@ function openPentecostShopModal(player) {
         if (player.faith >= g.cost && player.gifts.length < 4) {
           player.faith -= g.cost;
           player.gifts.push(g.id);
+          boughtAny = true;
           addEventLog(`🔥 【${player.name}】消耗 ${g.cost} 信心领受了【${g.name}】！`);
-          showEventPopup("🕊️", `领受圣灵恩赐：【${g.name}】`, g.desc, "#56ccf2", 2000);
           renderAllPlayersHUD();
           refreshShopUI();
         }
@@ -1460,6 +1811,9 @@ function openPentecostShopModal(player) {
 
   document.getElementById("btn-close-pentecost").onclick = () => {
     modal.classList.add("hidden");
+    if (boughtAny) {
+      enqueueCharSpeech(player, "positive", "领受圣灵恩赐");
+    }
     finishPlayerTurnAction();
   };
 }
@@ -1483,14 +1837,17 @@ function handleTrialTile(player) {
     if (isSuccess) {
       trial.onWin(player, rewardMult);
       addEventLog(`⚡ 【${player.name}】在试炼【${trial.name}】中信心得胜（${player.faith} ≥ ${effectiveReq}）！${trial.winText}`);
-      showEventPopup("🌟", `${player.name} · 试炼得胜：【${trial.name}】`, trial.winText, "#6fcf97", 2500);
+      enqueueNarrator("🌟", `${player.name} · 试炼得胜：【${trial.name}】`, trial.winText, "#6fcf97", 2000);
+      enqueueCharSpeech(player, "positive", "胜过试炼");
     } else if (usedShield) {
       addEventLog(`🛡️ 【${player.name}】在试炼【${trial.name}】中触发【属灵全副军装】护盾，免受跌倒惩罚！`);
-      showEventPopup("🛡️", `${player.name} · 全副军装护佑`, `抵挡了试炼【${trial.name}】的失败惩罚！`, "#56ccf2", 2400);
+      enqueueNarrator("🛡️", `${player.name} · 全副军装护佑`, `抵挡了试炼【${trial.name}】的失败惩罚！`, "#56ccf2", 2000);
+      enqueueCharSpeech(player, "positive", "护盾庇护");
     } else {
       trial.onLose(player);
       addEventLog(`⚡ 【${player.name}】在试炼【${trial.name}】中信心不足（${player.faith} < ${effectiveReq}），${trial.loseText}`);
-      showEventPopup("⚠️", `${player.name} · 试炼跌倒：【${trial.name}】`, trial.loseText, "#eb5757", 2500);
+      enqueueNarrator("⚠️", `${player.name} · 试炼跌倒：【${trial.name}】`, trial.loseText, "#eb5757", 2000);
+      enqueueCharSpeech(player, "negative", "试炼受挫");
     }
     refreshAllBoardTiles();
     renderAllPlayersHUD();
@@ -1498,7 +1855,6 @@ function handleTrialTile(player) {
     return;
   }
 
-  // 真人弹出试炼结算框
   const modal = document.getElementById("modal-trial");
   modal.classList.remove("hidden");
 
@@ -1533,11 +1889,13 @@ function handleTrialTile(player) {
     if (isSuccess) {
       trial.onWin(player, rewardMult);
       addEventLog(`⚡ 【${player.name}】通过试炼【${trial.name}】：${trial.winText}`);
-      showEventPopup("🌟", `试炼得胜：【${trial.name}】`, trial.winText, "#6fcf97", 2200);
+      enqueueNarrator("🌟", `试炼得胜：【${trial.name}】`, trial.winText, "#6fcf97", 1800);
+      enqueueCharSpeech(player, "positive", "胜过试炼");
     } else if (!usedShield) {
       trial.onLose(player);
       addEventLog(`⚡ 【${player.name}】未通过试炼【${trial.name}】：${trial.loseText}`);
-      showEventPopup("⚠️", `试炼受挫：【${trial.name}】`, trial.loseText, "#eb5757", 2200);
+      enqueueNarrator("⚠️", `试炼受挫：【${trial.name}】`, trial.loseText, "#eb5757", 1800);
+      enqueueCharSpeech(player, "negative", "旷野受挫");
     }
     refreshAllBoardTiles();
     renderAllPlayersHUD();
@@ -1545,7 +1903,7 @@ function handleTrialTile(player) {
   };
 }
 
-// 4. 城市地区格处理：建立教会 / 扩建堂会 / 访问奉献
+// 4. 城市地区格处理
 function handleCityTile(player, tile) {
   // 情况A：无主空地 -> 建立教会
   if (tile.owner === null) {
@@ -1555,7 +1913,8 @@ function handleCityTile(player, tile) {
     if (player.wealth < cost) {
       const msg = `抵达无主禾场【${tile.name}】，但经费不足 $${cost}，无法建立教会。`;
       addEventLog(`📍 【${player.name}】${msg}`);
-      showEventPopup("📍", `${player.name} · 经费不足`, msg, player.color, 2000);
+      enqueueNarrator("📍", `${player.name} · 经费不足`, msg, player.color, 1800);
+      enqueueCharSpeech(player, "negative", "囊中羞涩");
       finishPlayerTurnAction();
       return;
     }
@@ -1564,7 +1923,7 @@ function handleCityTile(player, tile) {
       if (player.wealth >= cost + 600) {
         buildChurchOnTile(player, tile);
       } else {
-        showEventPopup("📍", `${player.name} · 途经【${tile.name}】`, `选择保留宣教资金，暂不植堂。`, player.color, 1600);
+        enqueueNarrator("📍", `${player.name} · 途经【${tile.name}】`, `选择保留宣教资金，暂不植堂。`, player.color, 1500);
       }
       finishPlayerTurnAction();
       return;
@@ -1595,7 +1954,8 @@ function handleCityTile(player, tile) {
     if (tile.level >= 7) {
       const msg = `回到满级 7 级圣殿【${tile.name}教会】，会众兴旺（信徒 ${tile.believers} 人）！`;
       addEventLog(`⛪ 【${player.name}】${msg}`);
-      showEventPopup("👑", `${player.name} · 巡视满级圣殿`, msg, player.color, 2000);
+      enqueueNarrator("👑", `${player.name} · 巡视满级圣殿`, msg, player.color, 1800);
+      enqueueCharSpeech(player, "positive", "巡视圣殿");
       finishPlayerTurnAction();
       return;
     }
@@ -1608,7 +1968,7 @@ function handleCityTile(player, tile) {
     if (player.wealth < upgradeCost) {
       const msg = `回到【${tile.name}教会】，但经费不足 $${upgradeCost}，暂无法扩建。`;
       addEventLog(`⛪ 【${player.name}】${msg}`);
-      showEventPopup("⛪", `${player.name} · 回到己方堂会`, msg, player.color, 2000);
+      enqueueNarrator("⛪", `${player.name} · 回到己方堂会`, msg, player.color, 1800);
       finishPlayerTurnAction();
       return;
     }
@@ -1648,8 +2008,9 @@ function handleCityTile(player, tile) {
     player.shieldActive = false;
     const msg = `访问【${hostPlayer.name}】的【${tile.name}教会】，触发【属灵全副军装】免除了奉献款！`;
     addEventLog(`🛡️ 【${player.name}】${msg}`);
-    showEventPopup("🛡️", `${player.name} · 护盾免除奉献`, msg, "#56ccf2", 2400);
     renderAllPlayersHUD();
+    enqueueNarrator("🛡️", `${player.name} · 护盾免除奉献`, msg, "#56ccf2", 1900);
+    enqueueCharSpeech(player, "positive", "信德藤牌");
     finishPlayerTurnAction();
     return;
   }
@@ -1683,8 +2044,11 @@ function handleCityTile(player, tile) {
     hostPlayer.wealth += offering;
     const msg = `访问【${hostPlayer.name}】的【${tile.name}教会】，献上爱心奉献 $${offering.toLocaleString()}！`;
     addEventLog(`🤝 【${player.name}】${msg}`);
-    showEventPopup("🤝", `团契访问 · 奉献 $${offering.toLocaleString()}`, `【${player.name}】${msg}`, hostPlayer.color, 2500);
     renderAllPlayersHUD();
+
+    // 先弹旁白说明谁给谁奉献了多少 -> 消失后弹出访客的叹息语音
+    enqueueNarrator("🤝", `团契访问 · 奉献 $${offering.toLocaleString()}`, `【${player.name}】${msg}`, hostPlayer.color, 1900);
+    enqueueCharSpeech(player, "negative", "支付奉献");
     checkBankruptcyAndContinue(player);
     return;
   }
@@ -1705,8 +2069,10 @@ function handleCityTile(player, tile) {
       hostPlayer.wealth += offering;
       const msg = `向【${hostPlayer.name}】的【${tile.name}教会】奉献了 $${offering.toLocaleString()}！`;
       addEventLog(`🤝 【${player.name}】${msg}`);
-      showEventPopup("🤝", `爱心奉献 $${offering.toLocaleString()}`, `【${player.name}】${msg}`, hostPlayer.color, 2300);
       renderAllPlayersHUD();
+
+      enqueueNarrator("🤝", `爱心奉献 $${offering.toLocaleString()}`, `【${player.name}】${msg}`, hostPlayer.color, 1800);
+      enqueueCharSpeech(player, "negative", "支付奉献");
       checkBankruptcyAndContinue(player);
     }
   });
@@ -1722,7 +2088,10 @@ function buildChurchOnTile(player, tile) {
   renderAllPlayersHUD();
   const msg = `在【${tile.name}】建立 1 级教会（家庭聚会），初始信徒 ${tile.believers} 人！`;
   addEventLog(`⛪ 【${player.name}】${msg}`);
-  showEventPopup("⛪", `${player.name} · 开荒植堂`, msg, player.color, 2300);
+
+  // 先旁白 -> 消失后再出角色积极植堂语音
+  enqueueNarrator("⛪", `${player.name} · 开荒植堂`, msg, player.color, 1850);
+  enqueueCharSpeech(player, "positive", `植堂【${tile.name}】`);
 }
 
 function upgradeChurchOnTile(tile, logIt = true) {
@@ -1737,7 +2106,9 @@ function upgradeChurchOnTile(tile, logIt = true) {
     const owner = gameState.players[tile.owner];
     const msg = `将【${tile.name}教会】扩建至 ${tile.level} 级（${CHURCH_RANK_NAMES[tile.level]}），信徒增至 ${tile.believers} 人！`;
     addEventLog(`🔨 【${owner.name}】${msg}`);
-    showEventPopup("🔨", `${owner.name} · 扩建堂会`, msg, owner.color, 2300);
+
+    enqueueNarrator("🔨", `${owner.name} · 扩建堂会`, msg, owner.color, 1850);
+    enqueueCharSpeech(owner, "positive", `扩建【${tile.name}】`);
   }
 }
 
@@ -1806,13 +2177,15 @@ function sellChurchAtThreeFoldDiscount(player, tile) {
   player.wealth += refund;
   const msg = `以 3 折变卖了 ${tile.level} 级【${tile.name}教会】，回收资金 $${refund.toLocaleString()}。`;
   addEventLog(`⚠️ 【${player.name}】${msg}`);
-  showEventPopup("⚠️", `${player.name} · 3折变卖堂会`, msg, "#eb5757", 2500);
 
   tile.owner = null;
   tile.level = 0;
   tile.believers = 0;
   updateSingleTileDOM(tile.index);
   renderAllPlayersHUD();
+
+  enqueueNarrator("⚠️", `${player.name} · 3折变卖堂会`, msg, "#eb5757", 1900);
+  enqueueCharSpeech(player, "negative", "变卖堂会");
 }
 
 function openLiquidationModal(player) {
@@ -1869,25 +2242,26 @@ function eliminatePlayer(player) {
   });
   const msg = `因资不抵债且无堂会可变卖，事工停滞，退出天路！`;
   addEventLog(`🚨 【${player.name}（${player.charName}）】${msg}`);
-  showEventPopup("🚨", `${player.name} · 淘汰出局`, msg, "#eb5757", 3200);
   renderAllPlayersHUD();
   updateAllTokensPosition();
+
+  enqueueNarrator("🚨", `${player.name} · 淘汰出局`, msg, "#eb5757", 2200);
+  enqueueCharSpeech(player, "negative", "遗憾退场");
 }
 
 // ==================== 十、圣灵恩赐主动使用逻辑 ====================
 
 function openPlayerGiftsPicker() {
   const player = gameState.players[gameState.currentPlayerIdx];
-  // 严格校验：只有在投掷骰子前的 READY_ROLL 阶段才允许打开技能栏
   if (gameState.phase !== "READY_ROLL" || player.isAI) return;
 
   if (gameState.usedGiftThisTurn) {
-    showEventPopup("⚠️", "本回合已使用过恩赐", "每个回合最多只能发动 1 项【圣灵恩赐】！", "#f2c94c", 1800);
+    enqueueNarrator("⚠️", "本回合已使用过恩赐", "每个回合最多只能发动 1 项【圣灵恩赐】！", "#f2c94c", 1600);
     return;
   }
 
   if (player.gifts.length === 0) {
-    showEventPopup("🕊️", "暂无圣灵恩赐", "可在踏上【五旬节格】时消耗信心领受恩赐卡！", "#56ccf2", 1800);
+    enqueueNarrator("🕊️", "暂无圣灵恩赐", "可在踏上【五旬节格】时消耗信心领受恩赐卡！", "#56ccf2", 1600);
     return;
   }
 
@@ -1931,41 +2305,41 @@ function activateSpiritualGift(player, giftId, giftSlotIdx) {
     renderAllPlayersHUD();
   };
 
-  // 1. 云柱火柱（遥控骰子 1~6 步）
   if (giftId === "pillar_cloud") {
     const rModal = document.getElementById("modal-remote-dice");
     rModal.classList.remove("hidden");
     rModal.querySelectorAll(".step-btn").forEach(btn => {
-      btn.onclick = () => {
+      btn.onclick = async () => {
         const step = parseInt(btn.dataset.step, 10);
         rModal.classList.add("hidden");
         consumeGift();
         addEventLog(`🕊️ 【${player.name}】发动【云柱火柱】，指定前进 ${step} 步！`);
-        showEventPopup("🕊️", `${player.name} · 云柱火柱`, `神圣引导：指定前进 ${step} 步！`, "#56ccf2", 2000);
+        enqueueNarrator("🕊️", `${player.name} · 云柱火柱`, `神圣引导：指定前进 ${step} 步！`, "#56ccf2", 1600);
+        enqueueCharSpeech(player, "positive", "云柱火柱");
+        await waitForDialogQueue();
         executeRollDice(step);
       };
     });
     return;
   }
 
-  // 2. 如鹰展翅（双重骰子）
   if (giftId === "eagle_wings") {
     consumeGift();
     gameState.doubleDiceActive = true;
     document.getElementById("dice-box-2").classList.remove("hidden");
     addEventLog(`🕊️ 【${player.name}】发动【如鹰展翅】，本回合将同时投掷两颗骰子！`);
-    showEventPopup("🦅", `${player.name} · 如鹰展翅`, `本回合将同时投掷 2 颗骰子！`, "#56ccf2", 2000);
+    enqueueNarrator("🦅", `${player.name} · 如鹰展翅`, `本回合将同时投掷 2 颗骰子！`, "#56ccf2", 1600);
+    enqueueCharSpeech(player, "positive", "如鹰展翅");
     return;
   }
 
-  // 3. 腓利被提（直接传送至己方任意教会）
   if (giftId === "philip_teleport") {
     const myChurches = getPlayerChurches(player.index);
     if (myChurches.length === 0) {
-      showEventPopup("⚠️", "无法发动【腓利被提】", "你名下尚无已建立的教会可供传送！", "#eb5757", 2000);
+      enqueueNarrator("⚠️", "无法发动【腓利被提】", "你名下尚无已建立的教会可供传送！", "#eb5757", 1700);
       return;
     }
-    openChurchTargetSelection("【腓利被提】选择要传送前往的己方教会", myChurches, (targetTile) => {
+    openChurchTargetSelection("【腓利被提】选择要传送前往的己方教会", myChurches, async (targetTile) => {
       consumeGift();
       gameState.phase = "MOVING";
       document.getElementById("btn-roll-dice").disabled = true;
@@ -1976,17 +2350,18 @@ function activateSpiritualGift(player, giftId, giftSlotIdx) {
       focusCameraOnPlayer(player);
 
       addEventLog(`🕊️ 【${player.name}】发动【腓利被提】，被圣灵瞬间提往【${targetTile.name}教会】！`);
-      showEventPopup("🕊️", `${player.name} · 腓利被提`, `瞬间传送至【${targetTile.name}教会】！`, "#56ccf2", 2200);
+      enqueueNarrator("🕊️", `${player.name} · 腓利被提`, `瞬间传送至【${targetTile.name}教会】！`, "#56ccf2", 1700);
+      enqueueCharSpeech(player, "positive", "腓利被提");
+      await waitForDialogQueue();
       onPlayerLandedOnTile(player);
     });
     return;
   }
 
-  // 4. 尼希米筑墙（远程免费升1级）
   if (giftId === "nehemiah_wall") {
     const upgradable = getPlayerChurches(player.index).filter(t => t.level < 7);
     if (upgradable.length === 0) {
-      showEventPopup("⚠️", "无法发动【尼希米筑墙】", "你名下没有可扩建的未满级教会！", "#eb5757", 2000);
+      enqueueNarrator("⚠️", "无法发动【尼希米筑墙】", "你名下没有可扩建的未满级教会！", "#eb5757", 1700);
       return;
     }
     openChurchTargetSelection("【尼希米筑墙】选择要免费扩建 1 级的己方教会", upgradable, (targetTile) => {
@@ -1994,20 +2369,21 @@ function activateSpiritualGift(player, giftId, giftSlotIdx) {
       upgradeChurchOnTile(targetTile, false);
       const msg = `【${targetTile.name}教会】免费扩建至 ${targetTile.level} 级（信徒 ${targetTile.believers} 人）！`;
       addEventLog(`🕊️ 【${player.name}】发动【尼希米筑墙】，${msg}`);
-      showEventPopup("🧱", `${player.name} · 尼希米筑墙`, msg, "#56ccf2", 2300);
+      enqueueNarrator("🧱", `${player.name} · 尼希米筑墙`, msg, "#56ccf2", 1800);
+      enqueueCharSpeech(player, "positive", "修造城墙");
     });
     return;
   }
 
-  // 5. 洁净圣殿（对手教会降1级）
   if (giftId === "cleanse_temple") {
     const enemyChurches = gameState.board.filter(t => t.type === "city" && t.owner !== null && t.owner !== player.index);
     if (enemyChurches.length === 0) {
-      showEventPopup("⚠️", "无法发动【洁净圣殿】", "场上尚无其他玩家的教会可供降级！", "#eb5757", 2000);
+      enqueueNarrator("⚠️", "无法发动【洁净圣殿】", "场上尚无其他玩家的教会可供降级！", "#eb5757", 1700);
       return;
     }
     openChurchTargetSelection("【洁净圣殿】选择要强制降级的对手教会", enemyChurches, (targetTile) => {
       consumeGift();
+      const targetOwner = gameState.players[targetTile.owner];
       if (targetTile.level > 1) {
         const removedBase = Math.round((targetTile.level / 10) * targetTile.price);
         targetTile.level -= 1;
@@ -2019,12 +2395,12 @@ function activateSpiritualGift(player, giftId, giftSlotIdx) {
       renderAllPlayersHUD();
       const msg = `使【${targetTile.name}教会】降级整顿（当前 ${targetTile.level} 级，信徒 ${targetTile.believers} 人）！`;
       addEventLog(`🕊️ 【${player.name}】发动【洁净圣殿】，${msg}`);
-      showEventPopup("⚡", `${player.name} · 洁净圣殿`, msg, "#eb5757", 2300);
+      enqueueNarrator("⚡", `${player.name} · 洁净圣殿`, msg, "#eb5757", 1800);
+      enqueueCharSpeech(targetOwner, "negative", "堂会受整顿");
     });
     return;
   }
 
-  // 6. 迦拿婚宴（信心转财富）
   if (giftId === "cana_wedding") {
     consumeGift();
     const gain = Math.max(1200, player.faith * 40);
@@ -2032,15 +2408,15 @@ function activateSpiritualGift(player, giftId, giftSlotIdx) {
     renderAllPlayersHUD();
     const msg = `水变美酒，获得 $${gain.toLocaleString()} 财富补助！`;
     addEventLog(`🕊️ 【${player.name}】发动【迦拿婚宴】，${msg}`);
-    showEventPopup("🍷", `${player.name} · 迦拿婚宴`, msg, "#6fcf97", 2300);
+    enqueueNarrator("🍷", `${player.name} · 迦拿婚宴`, msg, "#6fcf97", 1800);
+    enqueueCharSpeech(player, "positive", "水变美酒");
     return;
   }
 
-  // 7. 五饼二鱼（指定己方教会信徒 +30%）
   if (giftId === "five_loaves") {
     const myChurches = getPlayerChurches(player.index);
     if (myChurches.length === 0) {
-      showEventPopup("⚠️", "无法发动【五饼二鱼】", "你名下尚无教会可供祝福倍增！", "#eb5757", 2000);
+      enqueueNarrator("⚠️", "无法发动【五饼二鱼】", "你名下尚无教会可供祝福倍增！", "#eb5757", 1700);
       return;
     }
     openChurchTargetSelection("【五饼二鱼】选择要使信徒 +30% 的己方教会", myChurches, (targetTile) => {
@@ -2050,33 +2426,33 @@ function activateSpiritualGift(player, giftId, giftSlotIdx) {
       renderAllPlayersHUD();
       const msg = `【${targetTile.name}教会】信徒暴涨 30% 至 ${targetTile.believers} 人！`;
       addEventLog(`🕊️ 【${player.name}】发动【五饼二鱼】，${msg}`);
-      showEventPopup("🐟", `${player.name} · 五饼二鱼`, msg, "#6fcf97", 2300);
+      enqueueNarrator("🐟", `${player.name} · 五饼二鱼`, msg, "#6fcf97", 1800);
+      enqueueCharSpeech(player, "positive", "五饼二鱼");
     });
     return;
   }
 
-  // 8. 属灵全副军装（护盾）
   if (giftId === "armor_of_god") {
     consumeGift();
     player.shieldActive = true;
     renderAllPlayersHUD();
     const msg = `获得 1 层信德护盾（免除下一次奉献款或试炼惩罚）！`;
     addEventLog(`🛡️ 【${player.name}】穿戴【属灵全副军装】，${msg}`);
-    showEventPopup("🛡️", `${player.name} · 属灵全副军装`, msg, "#56ccf2", 2200);
+    enqueueNarrator("🛡️", `${player.name} · 属灵全副军装`, msg, "#56ccf2", 1800);
+    enqueueCharSpeech(player, "positive", "穿戴军装");
     return;
   }
 
-  // 9. 舌音方言（下回合免答全对）
   if (giftId === "gift_tongues") {
     consumeGift();
     player.autoPassQuiz = true;
     const msg = `下回合晨更查经将无需做题，直接判定全部正确（信徒+10%）！`;
     addEventLog(`🕊️ 【${player.name}】发动【舌音方言】，${msg}`);
-    showEventPopup("🔥", `${player.name} · 舌音方言`, msg, "#56ccf2", 2200);
+    enqueueNarrator("🔥", `${player.name} · 舌音方言`, msg, "#56ccf2", 1800);
+    enqueueCharSpeech(player, "positive", "舌音方言");
     return;
   }
 
-  // 10. 约禧年号角（从首富对手转移 15% 财富）
   if (giftId === "jubilee_horn") {
     const enemies = gameState.players.filter(p => p.index !== player.index && !p.eliminated);
     if (enemies.length === 0) return;
@@ -2089,7 +2465,8 @@ function activateSpiritualGift(player, giftId, giftSlotIdx) {
     renderAllPlayersHUD();
     const msg = `从首富【${richest.name}】处转移了 $${transfer.toLocaleString()} 财富归入名下！`;
     addEventLog(`🎺 【${player.name}】吹响【约禧年号角】，${msg}`);
-    showEventPopup("🎺", `${player.name} · 约禧年号角`, msg, "#f2c94c", 2500);
+    enqueueNarrator("🎺", `${player.name} · 约禧年号角`, msg, "#f2c94c", 1850);
+    enqueueCharSpeech(player, "positive", "禧年号角");
   }
 }
 
@@ -2109,7 +2486,7 @@ function openChurchTargetSelection(title, tilesList, onSelect) {
     item.style.borderLeft = `4px solid ${owner.color}`;
     item.innerHTML = `
       <div>
-        <strong>⛪ ${t.name}教会</strong>（${t.level}级 · 归属：${escapeHtml(owner.name)}）
+        <strong>⛪ ${t.name}教会</strong>（${t.level}级 · 归属：${owner.name}）
         <div style="font-size:0.8rem;color:#b59f7e;">当前信徒：${t.believers.toLocaleString()} 人</div>
       </div>
       <button type="button" class="btn-primary" style="padding:6px 14px;font-size:0.84rem;">选择此堂会</button>
@@ -2126,16 +2503,19 @@ function openChurchTargetSelection(title, tilesList, onSelect) {
   };
 }
 
-// ==================== 十一、回合推进与终局胜负判定 ====================
+// ==================== 十一、回合推进与终局胜负判定（等待队列播完后再结束回合） ====================
 
-function finishPlayerTurnAction() {
+async function finishPlayerTurnAction() {
+  // 必须等当前所有的旁白框、角色语音框按顺序全部展示并消失后，才允许推进回合
+  await waitForDialogQueue();
+
   if (checkVictoryConditions()) return;
 
   const p = gameState.players[gameState.currentPlayerIdx];
   renderAllPlayersHUD();
 
   if (p.isAI || p.eliminated) {
-    setTimeout(() => advanceToNextPlayer(), 1100);
+    setTimeout(() => advanceToNextPlayer(), 500);
   } else {
     setPhaseText("事工完成，请结束回合");
     const endBtn = document.getElementById("btn-end-turn");
@@ -2221,12 +2601,17 @@ function showGameOverModal(winner, reasonText) {
     const score = computePlayerScore(p);
     return `
       <div class="picker-item" style="margin-bottom:8px;border-left:5px solid ${p.color};border-color:${idx === 0 ? "#f2c94c" : "#59442e"};">
-        <div>
-          <strong style="font-size:1rem;color:${idx === 0 ? "#f2c94c" : "#fff"};">
-            第 ${idx + 1} 名：${escapeHtml(p.name)}（${p.charName}） ${p.eliminated ? "[已退场]" : ""}
-          </strong>
-          <div style="font-size:0.82rem;color:#d1bfa3;margin-top:3px;">
-            ⛪ 堂会：${churches} 座 | 👥 总信徒：${believers.toLocaleString()} 人 | 💰 财富：$${p.wealth.toLocaleString()} | 🕊️ 信心：${p.faith}
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:42px;height:42px;border-radius:50%;overflow:hidden;border:2px solid ${p.color};flex-shrink:0;">
+            ${getCharacterSVG(p.charId)}
+          </div>
+          <div>
+            <strong style="font-size:1rem;color:${idx === 0 ? "#f2c94c" : "#fff"};">
+              第 ${idx + 1} 名：${p.name}（${p.charName}） ${p.eliminated ? "[已退场]" : ""}
+            </strong>
+            <div style="font-size:0.82rem;color:#d1bfa3;margin-top:3px;">
+              ⛪ 堂会：${churches} 座 | 👥 总信徒：${believers.toLocaleString()} 人 | 💰 财富：$${p.wealth.toLocaleString()} | 🕊️ 信心：${p.faith}
+            </div>
           </div>
         </div>
         <div style="text-align:right;">
@@ -2238,7 +2623,7 @@ function showGameOverModal(winner, reasonText) {
   }).join("");
 }
 
-// ==================== 十二、全屏棋盘拖拽、缩放与工具函数 ====================
+// ==================== 十二、全屏棋盘拖拽、缩放与语音开关绑定 ====================
 
 function initMapViewportDrag() {
   const viewport = document.getElementById("map-viewport");
@@ -2318,6 +2703,25 @@ function bindGlobalButtons() {
     document.getElementById("lobby-screen").classList.remove("hidden");
     document.getElementById("lobby-screen").classList.add("active");
   });
+
+  // 在顶部栏动态插入一个 🔊 语音开关按钮
+  const viewControls = document.querySelector(".view-controls");
+  if (viewControls && !document.getElementById("btn-toggle-voice")) {
+    const voiceBtn = document.createElement("button");
+    voiceBtn.type = "button";
+    voiceBtn.id = "btn-toggle-voice";
+    voiceBtn.className = "hud-mini-btn";
+    voiceBtn.title = "开启/关闭角色语音配音";
+    voiceBtn.textContent = "🔊";
+    voiceBtn.addEventListener("click", () => {
+      gameState.voiceEnabled = !gameState.voiceEnabled;
+      voiceBtn.textContent = gameState.voiceEnabled ? "🔊" : "🔇";
+      if (!gameState.voiceEnabled && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    });
+    viewControls.prepend(voiceBtn);
+  }
 }
 
 function getPlayerChurches(playerIdx) {
