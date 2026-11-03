@@ -3070,3 +3070,291 @@ function clearEventLog() {
   const box = document.getElementById("event-log-box");
   if (box) box.innerHTML = "";
 }
+
+// ==================== 十三、背景音乐 (bgm.mp3) 循环播放、音量滑块与精准人声闪避系统 ====================
+
+const bgmController = {
+  audio: null,
+  isPlaying: false,
+  isMuted: false,
+  baseVolume: 0.35, // 默认音量 35%，既烘托氛围又不吵
+  duckingTimer: null,
+  useFallbackSynth: false,
+  synthTimer: null,
+  synthStep: 0
+};
+
+/**
+ * 精准检测当前是否正在播放【角色人声配音】：
+ * 只有当语音开关开启，且（正在播放角色 MP3 语音 或 浏览器 TTS 正在朗读台词）时才返回 true。
+ * 旁白框、投骰子、踏步、建堂、金币等音效一概返回 false，不降低 BGM！
+ */
+function isCharacterVoiceSpeaking() {
+  if (!gameState.voiceEnabled) return false;
+  const isMp3VoicePlaying = Boolean(
+    activeAudioElement && !activeAudioElement.paused && !activeAudioElement.ended
+  );
+  const isTtsSpeaking = Boolean(
+    "speechSynthesis" in window && window.speechSynthesis.speaking
+  );
+  return isMp3VoicePlaying || isTtsSpeaking;
+}
+
+// 备用古典竖琴和弦（当未放置 bgm.mp3 时自动兜底）
+const FALLBACK_BGM_CHORDS = [
+  [130.81, 196.00, 261.63, 329.63, 392.00, 523.25],
+  [123.47, 196.00, 246.94, 293.66, 392.00, 493.88],
+  [110.00, 164.81, 220.00, 261.63, 329.63, 440.00],
+  [82.41,  164.81, 196.00, 246.94, 329.63, 392.00],
+  [87.31,  174.61, 220.00, 261.63, 349.23, 440.00],
+  [130.81, 196.00, 261.63, 329.63, 392.00, 523.25],
+  [146.83, 220.00, 293.66, 349.23, 440.00, 587.33],
+  [98.00,  196.00, 246.94, 293.66, 392.00, 493.88]
+];
+const FALLBACK_ARP = [0, 1, 2, 3, 5, 3, 2, 1];
+
+function initBGMSystem() {
+  // 1. 创建 Audio 实例并开启循环
+  const audio = new Audio("bgm.mp3");
+  audio.loop = true;
+  audio.preload = "auto";
+  audio.volume = bgmController.baseVolume;
+  bgmController.audio = audio;
+
+  // 若本地未放 bgm.mp3，自动标记切换为内置竖琴合成器兜底
+  audio.addEventListener("error", () => {
+    console.warn("未检测到 bgm.mp3，已自动切换为内置古典竖琴合成背景音乐。");
+    bgmController.useFallbackSynth = true;
+    if (bgmController.isPlaying && !bgmController.isMuted) {
+      startFallbackSynthBGM();
+    }
+  });
+
+  // 2. 启动精准人声闪避检测器（仅在角色开口读台词时压低 BGM 至 25%，旁白与音效不降低）
+  bgmController.duckingTimer = setInterval(() => {
+    if (!bgmController.audio || bgmController.useFallbackSynth) return;
+    if (bgmController.isMuted || !bgmController.isPlaying) return;
+
+    const targetVol = isCharacterVoiceSpeaking()
+      ? bgmController.baseVolume * 0.25
+      : bgmController.baseVolume;
+
+    // 平滑过渡音量
+    const diff = targetVol - bgmController.audio.volume;
+    if (Math.abs(diff) > 0.01) {
+      bgmController.audio.volume = Math.max(0, Math.min(1, bgmController.audio.volume + diff * 0.25));
+    } else {
+      bgmController.audio.volume = targetVol;
+    }
+  }, 100);
+
+  // 3. 在顶部栏注入 🎵 按钮与音量滑块浮窗
+  injectBGMControlsUI();
+
+  // 4. 点击“踏上天路（开始游戏）”时自动播放 BGM
+  const startBtn = document.getElementById("btn-start-game");
+  if (startBtn) {
+    startBtn.addEventListener("click", () => {
+      if (!bgmController.isPlaying) {
+        startBGMPlayback();
+      }
+    });
+  }
+}
+
+function startBGMPlayback() {
+  bgmController.isPlaying = true;
+  bgmController.isMuted = false;
+  updateBGMButtonIcon();
+
+  if (bgmController.useFallbackSynth) {
+    startFallbackSynthBGM();
+    return;
+  }
+
+  bgmController.audio.volume = bgmController.baseVolume;
+  const playPromise = bgmController.audio.play();
+  if (playPromise !== undefined) {
+    playPromise.catch(() => {
+      if (bgmController.audio.error) {
+        bgmController.useFallbackSynth = true;
+        startFallbackSynthBGM();
+      }
+    });
+  }
+}
+
+function toggleBGMMute() {
+  if (!bgmController.isPlaying) {
+    startBGMPlayback();
+    return;
+  }
+
+  bgmController.isMuted = !bgmController.isMuted;
+  updateBGMButtonIcon();
+
+  if (bgmController.useFallbackSynth) {
+    if (bgmController.isMuted) stopFallbackSynthBGM();
+    else startFallbackSynthBGM();
+  } else if (bgmController.audio) {
+    if (bgmController.isMuted) {
+      bgmController.audio.pause();
+    } else {
+      bgmController.audio.play().catch(() => {});
+    }
+  }
+}
+
+function setBGMVolume(val) {
+  const clamped = Math.max(0, Math.min(1, parseFloat(val)));
+  bgmController.baseVolume = clamped;
+
+  if (clamped === 0) {
+    bgmController.isMuted = true;
+    if (bgmController.audio && !bgmController.useFallbackSynth) bgmController.audio.pause();
+    stopFallbackSynthBGM();
+  } else {
+    if (bgmController.isMuted) {
+      bgmController.isMuted = false;
+      if (!bgmController.isPlaying) {
+        startBGMPlayback();
+      } else if (bgmController.useFallbackSynth) {
+        startFallbackSynthBGM();
+      } else if (bgmController.audio) {
+        bgmController.audio.play().catch(() => {});
+      }
+    }
+    if (bgmController.audio && !bgmController.useFallbackSynth) {
+      bgmController.audio.volume = isCharacterVoiceSpeaking() ? clamped * 0.25 : clamped;
+    }
+  }
+
+  updateBGMButtonIcon();
+  const labelEl = document.getElementById("bgm-vol-percent");
+  if (labelEl) labelEl.textContent = `${Math.round(clamped * 100)}%`;
+}
+
+function updateBGMButtonIcon() {
+  const btn = document.getElementById("btn-toggle-bgm");
+  if (!btn) return;
+  if (!bgmController.isPlaying || bgmController.isMuted || bgmController.baseVolume === 0) {
+    btn.textContent = "🔕";
+  } else if (bgmController.baseVolume < 0.4) {
+    btn.textContent = "🎶";
+  } else {
+    btn.textContent = "🎵";
+  }
+}
+
+// 备用合成器启停函数
+function startFallbackSynthBGM() {
+  if (bgmController.synthTimer) return;
+  bgmController.synthTimer = setInterval(() => {
+    if (bgmController.isMuted || !bgmController.isPlaying || bgmController.baseVolume <= 0) return;
+    const ctx = ensureAudioCtx();
+    if (!ctx) return;
+
+    const duckScale = isCharacterVoiceSpeaking() ? 0.3 : 1.0;
+    const vol = bgmController.baseVolume * duckScale;
+    const chord = FALLBACK_BGM_CHORDS[Math.floor(bgmController.synthStep / 8) % FALLBACK_BGM_CHORDS.length];
+    const note = chord[FALLBACK_ARP[bgmController.synthStep % 8]];
+    const now = ctx.currentTime;
+
+    if (bgmController.synthStep % 8 === 0) {
+      playSynthNote(ctx, chord[0], now, 2.2, 0.045 * vol, "sine");
+    }
+    playSynthNote(ctx, note, now, 0.65, 0.038 * vol, "triangle");
+    bgmController.synthStep++;
+  }, 340);
+}
+
+function stopFallbackSynthBGM() {
+  if (bgmController.synthTimer) {
+    clearInterval(bgmController.synthTimer);
+    bgmController.synthTimer = null;
+  }
+}
+
+// 在顶部状态栏动态插入带悬停音量条的 🎵 按钮（自带内联样式，无需改 style.css）
+function injectBGMControlsUI() {
+  const viewControls = document.querySelector(".view-controls");
+  if (!viewControls || document.getElementById("bgm-control-wrap")) return;
+
+  const styleEl = document.createElement("style");
+  styleEl.textContent = `
+    .bgm-control-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .bgm-vol-popover {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%) translateY(-4px);
+      background: rgba(26, 20, 14, 0.98);
+      border: 1.5px solid #d4a338;
+      border-radius: 10px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.85);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: all 0.18s ease;
+      z-index: 250;
+      white-space: nowrap;
+    }
+    .bgm-vol-popover::before {
+      content: "";
+      position: absolute;
+      top: -10px;
+      left: 0;
+      right: 0;
+      height: 10px;
+    }
+    .bgm-control-wrap:hover .bgm-vol-popover {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateX(-50%) translateY(0);
+    }
+    .bgm-vol-slider {
+      width: 88px;
+      accent-color: #f2c94c;
+      cursor: pointer;
+    }
+    .bgm-vol-label {
+      font-size: 0.74rem;
+      color: #f2c94c;
+      font-weight: 700;
+      min-width: 34px;
+      text-align: right;
+    }
+  `;
+  document.head.appendChild(styleEl);
+
+  const wrap = document.createElement("div");
+  wrap.id = "bgm-control-wrap";
+  wrap.className = "bgm-control-wrap";
+  wrap.innerHTML = `
+    <button type="button" id="btn-toggle-bgm" class="hud-mini-btn" title="点击静音/播放背景音乐，悬停调节音量">🎵</button>
+    <div class="bgm-vol-popover">
+      <span style="font-size:0.75rem;color:#e8dab8;">BGM</span>
+      <input type="range" id="bgm-vol-slider" class="bgm-vol-slider" min="0" max="1" step="0.02" value="${bgmController.baseVolume}" />
+      <span id="bgm-vol-percent" class="bgm-vol-label">${Math.round(bgmController.baseVolume * 100)}%</span>
+    </div>
+  `;
+
+  viewControls.prepend(wrap);
+
+  const btn = document.getElementById("btn-toggle-bgm");
+  const slider = document.getElementById("bgm-vol-slider");
+
+  btn.addEventListener("click", toggleBGMMute);
+  slider.addEventListener("input", (e) => setBGMVolume(e.target.value));
+}
+
+document.addEventListener("DOMContentLoaded", initBGMSystem);
