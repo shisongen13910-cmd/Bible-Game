@@ -297,6 +297,14 @@ const CHARACTERS = [
     }
   }
 ];
+// 若已加载 prayers.js，自动将每位角色的 positive / negative 祷告扩充为 30 句
+if (typeof CHARACTER_PRAYERS !== "undefined") {
+  CHARACTERS.forEach(c => {
+    if (CHARACTER_PRAYERS[c.id]) {
+      c.quotes = CHARACTER_PRAYERS[c.id];
+    }
+  });
+}
 
 const SPIRITUAL_GIFTS = [
   { id: "pillar_cloud", name: "云柱火柱", cost: 15, desc: "神圣引导：本回合不投随机骰子，直接指定前进 1 ~ 6 步。" },
@@ -548,6 +556,7 @@ let audioCtx = null;
 const gameState = {
   lobby: {
     playerCount: 4,
+    initialWealth: 10000,
     winGoal: "survival",
     mapSize: "small",
     quizDiff: "children",
@@ -613,12 +622,22 @@ function enqueueCharSpeech(player, mood = "positive", contextLabel = "", customQ
   if (!player) return;
   const charObj = CHARACTERS.find(c => c.id === player.charId) || CHARACTERS[0];
   const pool = mood === "negative" ? charObj.quotes.negative : charObj.quotes.positive;
-  let quoteIdx = Math.floor(Math.random() * pool.length);
+
+  let quoteIdx = -1;
+  let quoteText = "";
+
   if (customQuote) {
-    const foundIdx = pool.indexOf(customQuote);
-    quoteIdx = foundIdx >= 0 ? foundIdx : -1;
+    quoteText = customQuote;
+    quoteIdx = pool.indexOf(customQuote);
+  } else if (typeof getNextPrayerQuote === "function") {
+    // 使用 prayers.js 的洗牌袋无放回算法（抽满30句前绝不重复，且跨轮边界防重）
+    const picked = getNextPrayerQuote(charObj.id, mood);
+    quoteIdx = picked.quoteIdx;
+    quoteText = picked.quoteText;
+  } else {
+    quoteIdx = Math.floor(Math.random() * pool.length);
+    quoteText = pool[quoteIdx];
   }
-  const quoteText = customQuote || pool[quoteIdx];
 
   popupQueue.push({
     kind: "speech",
@@ -1124,6 +1143,15 @@ function initLobbyUI() {
     });
   });
 
+  const wealthBtns = document.querySelectorAll("#initial-wealth-group .opt-btn");
+  wealthBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      wealthBtns.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      gameState.lobby.initialWealth = parseInt(btn.dataset.wealth, 10);
+    });
+  });
+
   const goalCards = document.querySelectorAll("#win-goal-group .radio-card");
   goalCards.forEach(card => {
     card.addEventListener("click", () => {
@@ -1247,7 +1275,8 @@ function startNewGame() {
     const slot = gameState.lobby.slots[i];
     const charObj = CHARACTERS.find(c => c.id === slot.charId) || CHARACTERS[0];
 
-    const initWealth = charObj.id === "solomon" ? 13000 : 10000;
+    const baseWealth = gameState.lobby.initialWealth || 10000;
+    const initWealth = charObj.id === "solomon" ? baseWealth + 3000 : baseWealth;
     const initFaith = charObj.id === "abraham" ? 70 : 50;
 
     gameState.players.push({
